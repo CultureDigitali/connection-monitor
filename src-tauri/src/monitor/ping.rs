@@ -37,6 +37,10 @@ impl PingMonitor {
         history.push_back(latency_ms);
     }
 
+    pub fn has_samples(&self) -> bool {
+        !self.history.lock().is_empty()
+    }
+
     pub fn compute_stats(&self) -> PingResult {
         let history = self.history.lock();
         let successful: Vec<f64> = history.iter().filter_map(|x| *x).collect();
@@ -71,7 +75,7 @@ impl PingMonitor {
         };
 
         PingResult {
-            latency_ms: successful.last().copied(),
+            latency_ms: history.back().copied().flatten(),
             jitter_ms: jitter,
             packet_loss,
             avg_latency: avg,
@@ -92,6 +96,35 @@ pub async fn do_ping(target: &str) -> Option<f64> {
         return Some(latency);
     }
     do_tcp_ping(target).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PingMonitor;
+
+    #[test]
+    fn empty_monitor_has_no_completed_probe() {
+        assert!(!PingMonitor::new().has_samples());
+    }
+
+    #[test]
+    fn failed_latest_probe_clears_current_latency() {
+        let monitor = PingMonitor::new();
+        monitor.record_ping(Some(12.0));
+        monitor.record_ping(None);
+
+        assert_eq!(monitor.compute_stats().latency_ms, None);
+    }
+
+    #[test]
+    fn successful_latest_probe_reports_current_latency() {
+        let monitor = PingMonitor::new();
+        monitor.record_ping(None);
+        monitor.record_ping(Some(18.0));
+
+        assert!(monitor.has_samples());
+        assert_eq!(monitor.compute_stats().latency_ms, Some(18.0));
+    }
 }
 
 async fn do_icmp_ping(target: &str) -> Option<f64> {
