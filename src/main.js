@@ -1,3 +1,5 @@
+import { bindWindowVisibility } from './window-visibility.js';
+
 const { i18n } = window;
 
 function applyTranslations() {
@@ -81,7 +83,7 @@ class ConnectionMonitor {
 
     async setupEventListeners() {
         const closeBtn = document.getElementById('close-btn');
-        closeBtn.addEventListener('click', () => this.invoke('hide_main_window'));
+        bindWindowVisibility(closeBtn, () => this.invoke('hide_main_window'));
 
         const floatingBtn = document.getElementById('toggle-floating');
         floatingBtn.addEventListener('click', () => this.invoke('toggle_floating_window'));
@@ -116,10 +118,6 @@ class ConnectionMonitor {
 
         document.addEventListener('click', (e) => {
             langDropdown.classList.remove('visible');
-            const container = document.getElementById('container');
-            if (container && !container.contains(e.target)) {
-                this.invoke('hide_main_window');
-            }
         });
 
         if (window.__TAURI_INTERNALS__) {
