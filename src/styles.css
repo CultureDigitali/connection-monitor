@@ -134,6 +134,7 @@ header h1 {
 }
 
 .status-dot.disconnected { background: var(--accent-red); }
+.status-dot.connecting { background: var(--accent-blue); }
 .status-dot.fair { background: var(--accent-yellow); }
 .status-dot.poor { background: var(--accent-orange); }
 .status-dot.critical { background: var(--accent-red); }

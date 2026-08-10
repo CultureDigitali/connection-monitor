@@ -1,6 +1,6 @@
 import { bindWindowVisibility } from './window-visibility.js';
-
-const { i18n } = window;
+import { formatData, formatRate } from './formatters.js';
+import { i18n } from './i18n.js';
 
 function applyTranslations() {
     document.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -123,8 +123,11 @@ class ConnectionMonitor {
         if (window.__TAURI_INTERNALS__) {
             try {
                 const { listen } = window.__TAURI__.event;
-                const unsub1 = await listen('stats-update', () => this.fetchStats());
-                const unsub2 = await listen('ping-update', () => this.fetchStats());
+                const unsub1 = await listen('stats-update', (event) => {
+                    this.stats = event.payload;
+                    this.updateUI(event.payload);
+                });
+                const unsub2 = await listen('ping-update', () => {});
                 const unsub3 = await listen('speed-test-start', () => {
                     document.getElementById('speed-test-panel').classList.add('visible');
                     document.getElementById('speed-test-info').textContent = i18n.t('speedTestTesting');
@@ -206,14 +209,12 @@ class ConnectionMonitor {
     }
 
     updateUI(stats) {
-        const formatSpeed = (mbps) => {
-            if (mbps >= 1000) return (mbps / 1000).toFixed(2) + 'k';
-            if (mbps >= 100) return mbps.toFixed(0);
-            return mbps.toFixed(1);
-        };
-
-        document.getElementById('download-speed').textContent = formatSpeed(stats.download_mbps);
-        document.getElementById('upload-speed').textContent = formatSpeed(stats.upload_mbps);
+        const download = formatRate(stats.download_mbps);
+        const upload = formatRate(stats.upload_mbps);
+        document.getElementById('download-speed').textContent = download.value;
+        document.getElementById('download-unit').textContent = download.unit;
+        document.getElementById('upload-speed').textContent = upload.value;
+        document.getElementById('upload-unit').textContent = upload.unit;
 
         const pingEl = document.getElementById('ping-value');
         pingEl.textContent = stats.ping_ms > 0 ? `${stats.ping_ms.toFixed(0)} ms` : '-- ms';
@@ -245,7 +246,13 @@ class ConnectionMonitor {
         const scoreText = document.getElementById('status-score');
         const scoreElement = document.getElementById('quality-score');
 
-        if (!stats.is_connected) {
+        if (stats.connection_status === 'connecting') {
+            dot.className = 'status-dot connecting';
+            qualityText.textContent = i18n.t('statusConnecting');
+            scoreText.textContent = '…';
+            scoreElement.textContent = '--/100';
+            document.querySelectorAll('.star').forEach((s) => s.classList.remove('active'));
+        } else if (stats.connection_status === 'offline') {
             dot.className = 'status-dot disconnected';
             qualityText.textContent = i18n.t('statusDisconnected');
             scoreText.textContent = 'OFFLINE';
@@ -261,8 +268,8 @@ class ConnectionMonitor {
                 case 'quality_critical': labelKey = 'qualityCritical'; break;
                 default: labelKey = 'qualityGood';
             }
-            const label = i18n.t(labelKey).toLowerCase();
-            dot.className = `status-dot ${label}`;
+            const qualityClass = stats.quality_label_key.replace('quality_', '');
+            dot.className = `status-dot ${qualityClass}`;
             qualityText.textContent = i18n.t(labelKey);
             scoreText.textContent = `${stats.quality_score}/100`;
             scoreElement.textContent = `${stats.quality_score}/100`;
@@ -294,6 +301,8 @@ class ConnectionMonitor {
             uptimeStr = `${i18n.t('uptime')}: ${seconds}${s}`;
         }
         document.getElementById('uptime').textContent = uptimeStr;
+        const transferred = stats.total_download_mb + stats.total_upload_mb;
+        document.getElementById('total-data').textContent = `${i18n.t('totalData')}: ${formatData(transferred)}`;
 
         if (stats.bandwidth_history && stats.bandwidth_history.length > 0) {
             this.chart.update(stats.bandwidth_history);

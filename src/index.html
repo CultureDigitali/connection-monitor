@@ -62,7 +62,7 @@
                     </svg>
                 </div>
                 <div class="speed-value" id="download-speed">0.0</div>
-                <div class="speed-unit" data-i18n="speedDown" data-i18n-prefix="MB/s ">down</div>
+                <div class="speed-unit"><span id="download-unit">Kbps</span> <span data-i18n="speedDown">down</span></div>
             </div>
             <div class="speed-card upload">
                 <div class="speed-icon">
@@ -71,7 +71,7 @@
                     </svg>
                 </div>
                 <div class="speed-value" id="upload-speed">0.0</div>
-                <div class="speed-unit" data-i18n="speedUp" data-i18n-prefix="MB/s ">up</div>
+                <div class="speed-unit"><span id="upload-unit">Kbps</span> <span data-i18n="speedUp">up</span></div>
             </div>
         </div>
 
@@ -213,7 +213,6 @@
         </div>
     </div>
 
-    <script src="i18n.js"></script>
     <script type="module" src="main.js"></script>
 </body>
 </html>
