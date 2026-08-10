@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connection Monitor</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div class="container" id="container">
+        <header>
+            <div class="header-left">
+                <div class="app-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+                    </svg>
+                </div>
+                <h1 data-i18n="appTitle">Connection Monitor</h1>
+            </div>
+            <div class="header-right">
+                <div class="lang-selector">
+                    <button class="lang-btn" id="lang-btn" title="Language">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                        <span id="lang-current">EN</span>
+                    </button>
+                    <div class="lang-dropdown" id="lang-dropdown">
+                        <button class="lang-option" data-lang="en">English</button>
+                        <button class="lang-option" data-lang="it">Italiano</button>
+                        <button class="lang-option" data-lang="es">Espanol</button>
+                        <button class="lang-option" data-lang="fr">Francais</button>
+                    </div>
+                </div>
+                <button class="close-btn" id="close-btn" title="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab active" data-tab="monitor" data-i18n="tabMonitor">Monitor</button>
+            <button class="tab" data-tab="credits" data-i18n="tabCredits">Credits</button>
+        </nav>
+
+        <div class="tab-content" id="tab-monitor">
+
+        <div class="status-bar" id="status-bar">
+            <span class="status-dot" id="status-dot"></span>
+            <span class="status-text" id="quality-text">Connecting...</span>
+            <span class="status-score" id="status-score">--/100</span>
+        </div>
+
+        <div class="speed-display">
+            <div class="speed-card download">
+                <div class="speed-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v16M5 13l7 7 7-7"/>
+                    </svg>
+                </div>
+                <div class="speed-value" id="download-speed">0.0</div>
+                <div class="speed-unit" data-i18n="speedDown" data-i18n-prefix="MB/s ">down</div>
+            </div>
+            <div class="speed-card upload">
+                <div class="speed-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22V6M5 11l7-7 7 7"/>
+                    </svg>
+                </div>
+                <div class="speed-value" id="upload-speed">0.0</div>
+                <div class="speed-unit" data-i18n="speedUp" data-i18n-prefix="MB/s ">up</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-header">
+                <span class="chart-title" data-i18n="chartTitle">Bandwidth (last 60s)</span>
+                <div class="chart-legend">
+                    <span class="legend-item"><span class="legend-dot dl"></span><span data-i18n="chartLegendDown">Down</span></span>
+                    <span class="legend-item"><span class="legend-dot ul"></span><span data-i18n="chartLegendUp">Up</span></span>
+                </div>
+            </div>
+            <canvas id="bandwidth-chart"></canvas>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric" id="metric-ping">
+                <span class="metric-label" data-i18n="metricPing">Ping</span>
+                <span class="metric-value" id="ping-value">-- ms</span>
+            </div>
+            <div class="metric" id="metric-jitter">
+                <span class="metric-label" data-i18n="metricJitter">Jitter</span>
+                <span class="metric-value" id="jitter-value">-- ms</span>
+            </div>
+            <div class="metric" id="metric-loss">
+                <span class="metric-label" data-i18n="metricLoss">Loss</span>
+                <span class="metric-value" id="loss-value">--%</span>
+            </div>
+            <div class="metric" id="metric-wifi">
+                <span class="metric-label" data-i18n="metricWifi">WiFi</span>
+                <span class="metric-value" id="wifi-value">--</span>
+            </div>
+        </div>
+
+        <div class="quality-bar">
+            <div class="quality-stars" id="quality-stars">
+                <span class="star">&#9733;</span>
+                <span class="star">&#9733;</span>
+                <span class="star">&#9733;</span>
+                <span class="star">&#9733;</span>
+                <span class="star">&#9733;</span>
+            </div>
+            <div class="quality-score" id="quality-score">--/100</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-action" id="toggle-floating">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <rect x="7" y="7" width="6" height="6" rx="1"/>
+                </svg>
+                <span data-i18n="btnWidget">Widget</span>
+            </button>
+            <button class="btn-action primary" id="speed-test-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
+                <span id="speed-test-label" data-i18n="btnSpeedTest">Speed Test</span>
+            </button>
+        </div>
+
+        <div class="speed-test-panel" id="speed-test-panel">
+            <div class="speed-test-gauge">
+                <svg viewBox="0 0 200 120" class="gauge-svg">
+                    <defs>
+                        <linearGradient id="gauge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#f87171"/>
+                            <stop offset="50%" stop-color="#fbbf24"/>
+                            <stop offset="100%" stop-color="#34d399"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M 20 100 A 80 80 0 0 1 180 100" stroke="rgba(255,255,255,0.1)" stroke-width="12" fill="none" stroke-linecap="round"/>
+                    <path id="gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" stroke="url(#gauge-gradient)" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251"/>
+                </svg>
+                <div class="gauge-value">
+                    <div class="gauge-number" id="gauge-number">0.0</div>
+                    <div class="gauge-unit" data-i18n="speedTestMbps">Mbps</div>
+                </div>
+            </div>
+            <div class="speed-test-info" id="speed-test-info" data-i18n="speedTestReady">Click "Speed Test" to measure</div>
+        </div>
+
+        <footer>
+            <span class="uptime" id="uptime">Uptime: 0s</span>
+            <span class="total" id="total-data">Total: -- MB</span>
+        </footer>
+        </div>
+
+        <div class="tab-content hidden" id="tab-credits">
+            <div class="credits-container">
+                <div class="credits-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+                    </svg>
+                </div>
+                <h2 class="credits-title">Connection Monitor</h2>
+                <p class="credits-version" id="credits-version">v0.1.0</p>
+
+                <div class="credits-section">
+                    <h3>Developed by</h3>
+                    <div class="credits-card">
+                        <div class="credits-person">
+                            <strong>Luigi Strazzullo</strong>
+                            <span class="credits-role">Software Developer & Digital Consultant</span>
+                            <a href="#" class="credits-link" data-url="https://linkedin.com/in/luigistrazzullo">LinkedIn</a>
+                            <a href="#" class="credits-link" data-url="https://luigistrazzullo.it">luigistrazzullo.it</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="credits-section">
+                    <h3>For</h3>
+                    <div class="credits-card">
+                        <div class="credits-company">
+                            <strong>Culture Digitali Srl</strong>
+                            <span class="credits-role">Startup Innovativa - Digitalizzazione & Formazione</span>
+                            <p class="credits-desc">Premiata da OVH, Amazon, MiBac e Google for Startups. Specializzata in digitalizzazione, software gestionali, AI e consulenza per la PA.</p>
+                            <div class="credits-links">
+                                <a href="#" class="credits-link" data-url="https://culturedigitali.eu">culturedigitali.eu</a>
+                                <a href="#" class="credits-link" data-url="https://linkedin.com/company/culture-digitali">LinkedIn</a>
+                            </div>
+                            <div class="credits-contact">
+                                <p><strong>Email:</strong> <a href="#" class="credits-link" data-url="mailto:info@culturedigitali.eu">info@culturedigitali.eu</a></p>
+                                <p><strong>Phone:</strong> (+39) 081 180 88 248</p>
+                                <p><strong>Address:</strong> Via Coroglio 57D, 80124 Napoli</p>
+                                <p><strong>P.IVA:</strong> 09465861210</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="credits-section">
+                    <h3>License</h3>
+                    <div class="credits-card">
+                        <p>MIT License - Open Source Software</p>
+                        <p class="credits-small">Made with love in Naples, Italy</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="i18n.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
