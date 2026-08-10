@@ -4,8 +4,8 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager, State, Emitter};
 use tauri::image::Image as TauriImage;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 mod i18n;
 mod monitor;
@@ -14,7 +14,7 @@ mod stats;
 use i18n::{translate, I18n, Language};
 use monitor::bandwidth::BandwidthMonitor;
 use monitor::notify::{Notification, Notifier};
-use monitor::ping::{PingMonitor, do_ping};
+use monitor::ping::{do_ping, PingMonitor};
 use monitor::speedtest::{run_speed_test, SpeedTestResult};
 use monitor::wifi::WifiMonitor;
 use stats::ConnectionStats;
@@ -108,10 +108,57 @@ fn hex_to_rgb(hex: &str) -> (u8, u8, u8) {
     (r, g, b)
 }
 
-fn generate_tray_icon(download_mbps: f64, upload_mbps: f64, quality_score: u8, prefs: &ColorPrefs) -> TauriImage<'static> {
+fn is_connection_active(
+    latency_ms: Option<f64>,
+    packet_loss: f64,
+    total_download_mb: f64,
+    total_upload_mb: f64,
+    has_wifi: bool,
+    download_mbps: f64,
+    upload_mbps: f64,
+) -> bool {
+    latency_ms.is_some()
+        || packet_loss < 100.0
+        || total_download_mb > 0.0
+        || total_upload_mb > 0.0
+        || has_wifi
+        || download_mbps > 0.0
+        || upload_mbps > 0.0
+}
+
+fn format_tray_title(
+    download_mbps: f64,
+    upload_mbps: f64,
+    quality_score: u8,
+    is_connected: bool,
+) -> String {
+    if !is_connected {
+        return "OFFLINE".to_string();
+    }
+
+    let download = if download_mbps >= 1000.0 {
+        format!("{:.1}k", download_mbps / 1000.0)
+    } else {
+        format!("{download_mbps:.1}")
+    };
+    let upload = if upload_mbps >= 1000.0 {
+        format!("{:.1}k", upload_mbps / 1000.0)
+    } else {
+        format!("{upload_mbps:.1}")
+    };
+
+    format!("↓{download} ↑{upload} •{quality_score}")
+}
+
+fn generate_tray_icon(
+    download_mbps: f64,
+    upload_mbps: f64,
+    quality_score: u8,
+    prefs: &ColorPrefs,
+) -> TauriImage<'static> {
     use image::codecs::png::PngEncoder;
-    use image::ImageEncoder;
     use image::ExtendedColorType;
+    use image::ImageEncoder;
 
     let width: u32 = 24;
     let height: u32 = 24;
@@ -146,13 +193,22 @@ fn generate_tray_icon(download_mbps: f64, upload_mbps: f64, quality_score: u8, p
         let py = y as i32;
 
         if is_in_triangle(px, py, 5, 5, 10, 2, 17, 5) {
-            pixel[0] = ul_r; pixel[1] = ul_g; pixel[2] = ul_b; pixel[3] = 255;
+            pixel[0] = ul_r;
+            pixel[1] = ul_g;
+            pixel[2] = ul_b;
+            pixel[3] = 255;
         } else if is_in_triangle(px, py, 7, 19, 17, 10, 13, 20) {
-            pixel[0] = dl_r; pixel[1] = dl_g; pixel[2] = dl_b; pixel[3] = 255;
+            pixel[0] = dl_r;
+            pixel[1] = dl_g;
+            pixel[2] = dl_b;
+            pixel[3] = 255;
         } else if is_in_circle(px, py, 12, 12, 4) {
             let dist_sq = (px - 12) * (px - 12) + (py - 12) * (py - 12);
             if dist_sq <= 16 {
-                pixel[0] = q_color.0; pixel[1] = q_color.1; pixel[2] = q_color.2; pixel[3] = 255;
+                pixel[0] = q_color.0;
+                pixel[1] = q_color.1;
+                pixel[2] = q_color.2;
+                pixel[3] = 255;
             } else {
                 pixel[3] = 0;
             }
@@ -165,7 +221,9 @@ fn generate_tray_icon(download_mbps: f64, upload_mbps: f64, quality_score: u8, p
     let writer = std::io::Cursor::new(&mut bytes);
     let encoder = PngEncoder::new(writer);
     let raw = img.as_raw();
-    let ok = encoder.write_image(raw, width, height, ExtendedColorType::Rgba8).is_ok();
+    let ok = encoder
+        .write_image(raw, width, height, ExtendedColorType::Rgba8)
+        .is_ok();
 
     if ok {
         return match TauriImage::from_bytes(&bytes) {
@@ -177,18 +235,44 @@ fn generate_tray_icon(download_mbps: f64, upload_mbps: f64, quality_score: u8, p
 }
 
 fn load_default_icon() -> TauriImage<'static> {
-    if let Ok(icon) = TauriImage::from_path("icons/32x32.png") {
-        return icon;
+    use image::codecs::png::PngEncoder;
+    use image::ExtendedColorType;
+    use image::ImageEncoder;
+
+    let mut img = image::RgbaImage::new(24, 24);
+    for (x, y, pixel) in img.enumerate_pixels_mut() {
+        let dx = x as i32 - 12;
+        let dy = y as i32 - 12;
+        if dx * dx + dy * dy <= 100 {
+            pixel[0] = 96;
+            pixel[1] = 165;
+            pixel[2] = 250;
+            pixel[3] = 255;
+        } else {
+            pixel[3] = 0;
+        }
     }
-    let fallback: Vec<u8> = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    TauriImage::from_bytes(&fallback)
-        .unwrap_or_else(|_| TauriImage::from_bytes(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-            .unwrap_or_else(|_| TauriImage::from_bytes(&[]).unwrap()))
+
+    let mut bytes: Vec<u8> = Vec::new();
+    let writer = std::io::Cursor::new(&mut bytes);
+    let encoder = PngEncoder::new(writer);
+    if encoder
+        .write_image(img.as_raw(), 24, 24, ExtendedColorType::Rgba8)
+        .is_ok()
+    {
+        if let Ok(icon) = TauriImage::from_bytes(&bytes) {
+            return icon;
+        }
+    }
+    TauriImage::from_bytes(&[])
+        .unwrap_or_else(|_| TauriImage::from_path("icons/32x32.png").unwrap())
 }
 
 fn is_in_triangle(px: i32, py: i32, x1: i32, y1: i32, x2: i32, y2: i32, x3: i32, y3: i32) -> bool {
     let d = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
-    if d == 0 { return false; }
+    if d == 0 {
+        return false;
+    }
     let a = ((y2 - y3) as f64 * (px - x3) as f64 + (x3 - x2) as f64 * (py - y3) as f64) / d as f64;
     let b = ((y3 - y1) as f64 * (px - x3) as f64 + (x1 - x3) as f64 * (py - y3) as f64) / d as f64;
     let c = 1.0 - a - b;
@@ -279,9 +363,15 @@ fn get_bandwidth(state: State<'_, AppState>) -> ConnectionStats {
         (res.total_download_mb, res.total_upload_mb)
     };
 
-    let is_connected = ping_result.latency_ms.is_some()
-        || ping_result.packet_loss < 100.0
-        || total_bytes_result.0 > 0.0 || total_bytes_result.1 > 0.0;
+    let is_connected = is_connection_active(
+        ping_result.latency_ms,
+        ping_result.packet_loss,
+        total_bytes_result.0,
+        total_bytes_result.1,
+        wifi.ssid.is_some(),
+        dl,
+        ul,
+    );
 
     let elapsed = state.start_time.elapsed().as_secs();
     let wifi_quality_label = wifi
@@ -390,10 +480,6 @@ fn spawn_monitor_loop(app: AppHandle, state: Arc<AppState>) {
                 let ping_result = ping_monitor.compute_stats();
                 drop(ping_monitor);
 
-                let is_conn = ping_result.latency_ms.is_some()
-                    || ping_result.packet_loss < 100.0
-                    || res.total_download_mb > 0.0 || res.total_upload_mb > 0.0;
-
                 let wifi = WifiMonitor::get_wifi_info();
                 let quality = ConnectionStats::calculate_quality(
                     ping_result.avg_latency,
@@ -402,7 +488,25 @@ fn spawn_monitor_loop(app: AppHandle, state: Arc<AppState>) {
                     wifi.signal_dbm,
                 );
 
-                (d, u, res.total_download_mb, res.total_upload_mb, quality.0, is_conn, quality.2)
+                let is_conn = is_connection_active(
+                    ping_result.latency_ms,
+                    ping_result.packet_loss,
+                    res.total_download_mb,
+                    res.total_upload_mb,
+                    wifi.ssid.is_some(),
+                    d,
+                    u,
+                );
+
+                (
+                    d,
+                    u,
+                    res.total_download_mb,
+                    res.total_upload_mb,
+                    quality.0,
+                    is_conn,
+                    quality.2,
+                )
             };
 
             let _ = app.emit("stats-update", ());
@@ -414,8 +518,16 @@ fn spawn_monitor_loop(app: AppHandle, state: Arc<AppState>) {
             let tooltip = if !is_connected {
                 translate(state.i18n.get(), "quality_disconnected")
             } else {
-                let dl_val = if dl >= 1000.0 { format!("{:.1}k", dl / 1000.0) } else { format!("{:.1}", dl) };
-                let ul_val = if ul >= 1000.0 { format!("{:.1}k", ul / 1000.0) } else { format!("{:.1}", ul) };
+                let dl_val = if dl >= 1000.0 {
+                    format!("{:.1}k", dl / 1000.0)
+                } else {
+                    format!("{:.1}", dl)
+                };
+                let ul_val = if ul >= 1000.0 {
+                    format!("{:.1}k", ul / 1000.0)
+                } else {
+                    format!("{:.1}", ul)
+                };
                 format!(
                     "{} | \u{2193}{} \u{2191}{} MB/s | Score: {}",
                     translate(state.i18n.get(), "app_title"),
@@ -427,18 +539,23 @@ fn spawn_monitor_loop(app: AppHandle, state: Arc<AppState>) {
 
             if let Some(tray) = app.tray_by_id("main-tray") {
                 let _ = tray.set_icon(Some(icon));
+                let _ =
+                    tray.set_title(Some(format_tray_title(dl, ul, quality_score, is_connected)));
                 let _ = tray.set_tooltip(Some(&tooltip));
             }
 
-            let _ = app.emit("tray-update", serde_json::json!({
-                "download": dl,
-                "upload": ul,
-                "totalDownloadMb": total_dl,
-                "totalUploadMb": total_ul,
-                "qualityScore": quality_score,
-                "isConnected": is_connected,
-                "qualityLabelKey": quality_label_key,
-            }));
+            let _ = app.emit(
+                "tray-update",
+                serde_json::json!({
+                    "download": dl,
+                    "upload": ul,
+                    "totalDownloadMb": total_dl,
+                    "totalUploadMb": total_ul,
+                    "qualityScore": quality_score,
+                    "isConnected": is_connected,
+                    "qualityLabelKey": quality_label_key,
+                }),
+            );
         }
     });
 }
@@ -467,7 +584,10 @@ fn spawn_ping_loop(app: AppHandle, state: Arc<AppState>) {
             let _ = app.emit("ping-update", ());
 
             if connected_changed {
-                if let Some(notif) = state.notifier.lock().check_connection(ping_result.is_some(), lang)
+                if let Some(notif) = state
+                    .notifier
+                    .lock()
+                    .check_connection(ping_result.is_some(), lang)
                 {
                     send_notification(&app, &notif);
                 }
@@ -597,30 +717,32 @@ fn build_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut tray_builder = tauri::tray::TrayIconBuilder::with_id("main-tray")
         .tooltip("Connection Monitor")
+        .title("…")
         .icon(icon);
 
     #[cfg(target_os = "macos")]
     {
-        tray_builder = tray_builder.icon_as_template(true);
+        tray_builder = tray_builder.icon_as_template(false);
     }
 
     #[cfg(target_os = "macos")]
     let _tray = tray_builder
         .on_tray_icon_event(|tray, event| {
-            if let tauri::tray::TrayIconEvent::Click { .. } = event {
+            if let tauri::tray::TrayIconEvent::Click {
+                button: tauri::tray::MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                ..
+            } = event
+            {
                 let app = tray.app_handle();
-                let should_show = app
-                    .get_webview_window("main")
-                    .map(|w| w.is_visible().map(|v| !v).unwrap_or(true))
-                    .unwrap_or(true);
-
                 if let Some(win) = app.get_webview_window("main") {
-                    if should_show {
+                    let is_visible = win.is_visible().unwrap_or(false);
+                    if is_visible {
+                        let _ = win.hide();
+                    } else {
                         let _ = win.show();
                         let _ = win.set_focus();
                         position_window_near_tray(&win);
-                    } else {
-                        let _ = win.hide();
                     }
                 }
             }
@@ -631,4 +753,44 @@ fn build_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let _tray = tray_builder.build(app)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{format_tray_title, is_connection_active};
+
+    #[test]
+    fn empty_first_sample_is_offline() {
+        assert!(!is_connection_active(
+            None, 100.0, 0.0, 0.0, false, 0.0, 0.0
+        ));
+    }
+
+    #[test]
+    fn successful_ping_is_online() {
+        assert!(is_connection_active(
+            Some(12.0),
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.0,
+            0.0
+        ));
+    }
+
+    #[test]
+    fn observed_traffic_is_online() {
+        assert!(is_connection_active(None, 100.0, 0.0, 0.0, false, 0.1, 0.0));
+    }
+
+    #[test]
+    fn connected_tray_title_is_readable() {
+        assert_eq!(format_tray_title(0.0, 0.0, 50, true), "↓0.0 ↑0.0 •50");
+    }
+
+    #[test]
+    fn offline_tray_title_is_explicit() {
+        assert_eq!(format_tray_title(0.0, 0.0, 0, false), "OFFLINE");
+    }
 }

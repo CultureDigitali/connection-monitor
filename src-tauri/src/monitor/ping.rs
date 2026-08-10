@@ -88,6 +88,13 @@ impl PingMonitor {
 }
 
 pub async fn do_ping(target: &str) -> Option<f64> {
+    if let Some(latency) = do_icmp_ping(target).await {
+        return Some(latency);
+    }
+    do_tcp_ping(target).await
+}
+
+async fn do_icmp_ping(target: &str) -> Option<f64> {
     let parsed_target: IpAddr = match target.parse() {
         Ok(ip) => ip,
         Err(_) => match dns_lookup::lookup_host(target) {
@@ -100,9 +107,26 @@ pub async fn do_ping(target: &str) -> Option<f64> {
     let client = Client::new(&config).ok()?;
     let payload = &[0u8; 56];
     let mut pinger = client.pinger(parsed_target, PingIdentifier(111)).await;
-    pinger.timeout(Duration::from_secs(3));
+    pinger.timeout(Duration::from_secs(2));
     match pinger.ping(PingSequence(0), payload).await {
         Ok((_, duration)) => Some(duration.as_secs_f64() * 1000.0),
         Err(_) => None,
+    }
+}
+
+async fn do_tcp_ping(target: &str) -> Option<f64> {
+    use tokio::time::timeout;
+    let start = std::time::Instant::now();
+    let connect = tokio::net::TcpStream::connect((target, 443));
+    match timeout(Duration::from_secs(3), connect).await {
+        Ok(Ok(_stream)) => Some(start.elapsed().as_secs_f64() * 1000.0),
+        _ => {
+            let start = std::time::Instant::now();
+            let connect = tokio::net::TcpStream::connect((target, 80));
+            match timeout(Duration::from_secs(3), connect).await {
+                Ok(Ok(_stream)) => Some(start.elapsed().as_secs_f64() * 1000.0),
+                _ => None,
+            }
+        }
     }
 }
