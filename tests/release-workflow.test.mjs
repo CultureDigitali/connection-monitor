@@ -24,3 +24,25 @@ test("release workflow uses current Node 24 GitHub actions", async () => {
   assert.match(workflow, /uses: actions\/setup-node@v7/);
   assert.match(workflow, /node-version: '24'/);
 });
+
+test("release workflow builds macOS and Windows updater artifacts", async () => {
+  const workflow = await readFile(".github/workflows/release.yml", "utf8");
+
+  assert.match(workflow, /windows-latest/);
+  assert.match(workflow, /x86_64-pc-windows-msvc/);
+  assert.match(workflow, /bundles: nsis,msi/);
+  assert.match(workflow, /updaterJsonPreferNsis: true/);
+  assert.match(workflow, /node --test tests\/\*\.test\.mjs/);
+  assert.match(workflow, /cargo test/);
+});
+
+test("Windows CI builds and uploads both installers", async () => {
+  const workflow = await readFile(".github/workflows/windows.yml", "utf8");
+
+  assert.match(workflow, /windows-latest/);
+  assert.match(workflow, /--bundles nsis,msi/);
+  assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);
+  assert.match(workflow, /uses: actions\/upload-artifact@v7/);
+  assert.match(workflow, /bundle\/nsis/);
+  assert.match(workflow, /bundle\/msi/);
+});
