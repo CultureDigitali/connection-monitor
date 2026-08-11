@@ -67,6 +67,15 @@ Run a full speed test with one click. See your max download speed and latency.
 ### 📈 Bandwidth history chart
 A live-updating chart shows the last 60 seconds of your bandwidth usage. Spot patterns. Find issues.
 
+### 🛡 Connection Guardian & 30-day statistics
+Connection Guardian records interruptions and sustained degradation locally, explains the measured cause, and suggests what to do. Explore 24-hour, 7-day, or 30-day trends without an account or cloud service.
+
+### ⏪ Internet Replay & Connection Streak
+Replay any measured moment to compare quality, speed, latency, and incidents. Connection Streak highlights consecutive reliable days while keeping every result private on your Mac.
+
+### 🧩 Dedicated floating widget
+Keep download, upload, quality, and session traffic visible in a compact draggable widget. Contextual tooltips and an in-app guide explain every important control.
+
 ### 🌍 Multi-language
 Available in **English**, **Italiano**, **Español**, and **Français**.
 
@@ -151,8 +160,11 @@ The built `.dmg` will be at `src-tauri/target/release/bundle/dmg/`.
 - [x] Color-coded dynamic tray icon
 - [x] Speed test integration
 - [x] Multi-language support (EN, IT, ES, FR)
-- [ ] Daily/weekly statistics view
-- [ ] Connection alerts & notifications
+- [x] Daily/weekly/monthly statistics view
+- [x] Local Connection Guardian incidents
+- [x] Internet Replay and Connection Streak
+- [x] Dedicated floating widget, tooltips and guide
+- [ ] Export history to CSV
 - [ ] Intel Mac support
 - [ ] Dark/Light mode toggle
 - [ ] Customizable refresh interval

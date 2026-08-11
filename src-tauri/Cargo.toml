@@ -1,6 +1,6 @@
 [package]
 name = "connection-monitor"
-version = "0.2.1"
+version = "0.3.0"
 description = "Mac Connection Monitor - Bandwidth & Quality"
 authors = ["Culture Digitali Srl <info@culturedigitali.eu>"]
 edition = "2021"
