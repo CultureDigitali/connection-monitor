@@ -314,44 +314,109 @@ header h1 {
 .metric.warning .metric-value { color: var(--accent-yellow); }
 .metric.danger .metric-value { color: var(--accent-red); }
 
-.quality-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
+.diagnostic-card {
+    padding: 10px 12px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-glass);
-    border-radius: 10px;
-}
-
-.quality-stars {
+    border-radius: 12px;
     display: flex;
-    gap: 2px;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.star {
-    font-size: 15px;
-    color: rgba(255, 255, 255, 0.15);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.diagnostic-section {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
 }
 
-.star.active {
-    color: var(--accent-yellow);
-    text-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
-    animation: starPop 0.4s ease-out;
+.diagnostic-section.action {
+    padding-top: 7px;
+    border-top: 1px solid var(--border-glass);
 }
 
-@keyframes starPop {
-    0% { transform: scale(0.5); opacity: 0; }
-    60% { transform: scale(1.2); }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-.quality-score {
-    font-size: 12px;
+.diagnostic-label {
+    color: var(--text-muted);
+    font-size: 9px;
     font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.diagnostic-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.diagnostic-recommendation {
+    font-size: 10px;
+    line-height: 1.4;
     color: var(--text-secondary);
+}
+
+.diagnostic-toggle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+    border: 0;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--accent-blue);
+    font: 600 10px inherit;
+    cursor: pointer;
+}
+
+.diagnostic-toggle[aria-expanded="true"] .diagnostic-chevron {
+    transform: rotate(180deg);
+}
+
+.diagnostic-chevron { transition: transform var(--transition-speed); }
+
+.diagnostic-details {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.diagnostic-details.hidden,
+.diagnostic-toggle.hidden { display: none; }
+
+.diagnostic-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+
+.diagnostic-row strong {
+    color: var(--accent-yellow);
     font-variant-numeric: tabular-nums;
+}
+
+.diagnostic-row.critical strong { color: var(--accent-red); }
+
+#tab-monitor {
+    max-height: 426px;
+    overflow-y: auto;
+    padding-right: 3px;
+}
+
+#tab-monitor::-webkit-scrollbar { width: 4px; }
+#tab-monitor::-webkit-scrollbar-track { background: transparent; }
+#tab-monitor::-webkit-scrollbar-thumb {
+    background: var(--border-glass);
+    border-radius: 4px;
 }
 
 .controls {

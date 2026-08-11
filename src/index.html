@@ -105,15 +105,20 @@
             </div>
         </div>
 
-        <div class="quality-bar">
-            <div class="quality-stars" id="quality-stars">
-                <span class="star">&#9733;</span>
-                <span class="star">&#9733;</span>
-                <span class="star">&#9733;</span>
-                <span class="star">&#9733;</span>
-                <span class="star">&#9733;</span>
+        <div class="diagnostic-card" id="diagnostic-card">
+            <div class="diagnostic-section">
+                <span class="diagnostic-label" data-i18n="diagnosticWhy">Why</span>
+                <div class="diagnostic-summary" id="diagnostic-summary">--</div>
             </div>
-            <div class="quality-score" id="quality-score">--/100</div>
+            <div class="diagnostic-section action">
+                <span class="diagnostic-label" data-i18n="diagnosticAction">What to do</span>
+                <p class="diagnostic-recommendation" id="diagnostic-recommendation">--</p>
+            </div>
+            <button class="diagnostic-toggle" id="diagnostic-toggle" type="button" aria-expanded="false">
+                <span id="diagnostic-toggle-label" data-i18n="diagnosticDetails">Details</span>
+                <span class="diagnostic-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="diagnostic-details hidden" id="diagnostic-details"></div>
         </div>
 
         <div class="controls">

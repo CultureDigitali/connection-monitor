@@ -1,6 +1,7 @@
 import { bindWindowVisibility } from './window-visibility.js';
 import { formatData, formatRate } from './formatters.js';
 import { i18n } from './i18n.js';
+import { buildDiagnosticModel } from './diagnostics.js';
 
 function applyTranslations() {
     document.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -24,6 +25,7 @@ class ConnectionMonitor {
         this.chart = new BandwidthChart('bandwidth-chart');
         this.stats = null;
         this.speedTestRunning = false;
+        this.diagnosticsExpanded = false;
         this.unsubs = [];
 
         this.setupTabs();
@@ -90,6 +92,16 @@ class ConnectionMonitor {
 
         const speedTestBtn = document.getElementById('speed-test-btn');
         speedTestBtn.addEventListener('click', () => this.runSpeedTest());
+
+        const diagnosticsToggle = document.getElementById('diagnostic-toggle');
+        diagnosticsToggle.addEventListener('click', () => {
+            this.diagnosticsExpanded = !this.diagnosticsExpanded;
+            diagnosticsToggle.setAttribute('aria-expanded', String(this.diagnosticsExpanded));
+            document.getElementById('diagnostic-toggle-label').textContent = i18n.t(
+                this.diagnosticsExpanded ? 'diagnosticCollapse' : 'diagnosticDetails',
+            );
+            if (this.stats) this.renderDiagnostics(this.stats);
+        });
 
         const langBtn = document.getElementById('lang-btn');
         const langDropdown = document.getElementById('lang-dropdown');
@@ -244,20 +256,15 @@ class ConnectionMonitor {
         const dot = document.getElementById('status-dot');
         const qualityText = document.getElementById('quality-text');
         const scoreText = document.getElementById('status-score');
-        const scoreElement = document.getElementById('quality-score');
 
         if (stats.connection_status === 'connecting') {
             dot.className = 'status-dot connecting';
             qualityText.textContent = i18n.t('statusConnecting');
             scoreText.textContent = '…';
-            scoreElement.textContent = '--/100';
-            document.querySelectorAll('.star').forEach((s) => s.classList.remove('active'));
         } else if (stats.connection_status === 'offline') {
             dot.className = 'status-dot disconnected';
             qualityText.textContent = i18n.t('statusDisconnected');
             scoreText.textContent = 'OFFLINE';
-            scoreElement.textContent = '--/100';
-            document.querySelectorAll('.star').forEach((s) => s.classList.remove('active'));
         } else {
             let labelKey;
             switch (stats.quality_label_key) {
@@ -272,21 +279,9 @@ class ConnectionMonitor {
             dot.className = `status-dot ${qualityClass}`;
             qualityText.textContent = i18n.t(labelKey);
             scoreText.textContent = `${stats.quality_score}/100`;
-            scoreElement.textContent = `${stats.quality_score}/100`;
-
-            const stars = document.querySelectorAll('.star');
-            const activeCount = Math.ceil(stats.quality_score / 20);
-            stars.forEach((star, i) => {
-                const wasActive = star.classList.contains('active');
-                const willBeActive = i < activeCount;
-                star.classList.toggle('active', willBeActive);
-                if (willBeActive && !wasActive) {
-                    star.style.animation = 'none';
-                    star.offsetHeight;
-                    star.style.animation = '';
-                }
-            });
         }
+
+        this.renderDiagnostics(stats);
 
         const hours = Math.floor(stats.uptime_seconds / 3600);
         const minutes = Math.floor((stats.uptime_seconds % 3600) / 60);
@@ -307,6 +302,32 @@ class ConnectionMonitor {
         if (stats.bandwidth_history && stats.bandwidth_history.length > 0) {
             this.chart.update(stats.bandwidth_history);
         }
+    }
+
+    renderDiagnostics(stats) {
+        const model = buildDiagnosticModel(stats, (key) => i18n.t(key));
+        const summary = document.getElementById('diagnostic-summary');
+        summary.replaceChildren(...model.summary.map((reason) => {
+            const item = document.createElement('span');
+            item.textContent = reason;
+            return item;
+        }));
+        document.getElementById('diagnostic-recommendation').textContent = model.recommendation;
+
+        const details = document.getElementById('diagnostic-details');
+        details.replaceChildren(...model.rows.map((row) => {
+            const item = document.createElement('div');
+            item.className = `diagnostic-row ${row.severity}`;
+            const metric = document.createElement('span');
+            metric.textContent = `${row.label} · ${row.measured}`;
+            const penalty = document.createElement('strong');
+            penalty.textContent = `${row.penalty} pt`;
+            item.append(metric, penalty);
+            return item;
+        }));
+        details.classList.toggle('hidden', !this.diagnosticsExpanded || model.rows.length === 0);
+        document.getElementById('diagnostic-toggle').classList.toggle('hidden', model.rows.length === 0);
+        document.getElementById('diagnostic-card').dataset.state = model.state;
     }
 }
 
