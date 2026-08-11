@@ -45,3 +45,10 @@ test('every language has identical keys for statistics, Guardian, guide, and too
         for (const key of required) assert.ok(translations[language][key], `${language}.${key}`);
     }
 });
+
+test('every language explains the Windows hidden tray menu', () => {
+    for (const language of Object.values(translations)) {
+        assert.match(language.guideStepWidgetBody, /Windows/);
+        assert.match(language.guideStepWidgetBody, /\^/);
+    }
+});
