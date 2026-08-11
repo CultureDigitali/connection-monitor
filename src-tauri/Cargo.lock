@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "connection-monitor"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
@@ -519,6 +519,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-updater",
  "tokio",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

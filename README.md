@@ -7,12 +7,13 @@
 
 # Connection Monitor
 
-**The beautiful, privacy-first internet connection monitor for macOS**
+**The beautiful, privacy-first internet connection monitor for macOS and Windows**
 
 [![Stars](https://img.shields.io/github/stars/CultureDigitali/connection-monitor?style=flat&logo=github&color=yellow)](https://github.com/CultureDigitali/connection-monitor/stargazers)
 [![Downloads](https://img.shields.io/github/downloads/CultureDigitali/connection-monitor/total?style=flat&logo=apple&color=blue)](https://github.com/CultureDigitali/connection-monitor/releases)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat)](LICENSE)
 [![Platform](https://img.shields.io/badge/macOS-11.0+-silver?style=flat&logo=apple)](https://www.apple.com/macos)
+[![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D4?style=flat&logo=windows)](https://www.microsoft.com/windows)
 [![Release](https://img.shields.io/github/v/release/CultureDigitali/connection-monitor?style=flat&color=success)](https://github.com/CultureDigitali/connection-monitor/releases)
 [![Build](https://img.shields.io/github/actions/workflow/status/CultureDigitali/connection-monitor/release.yml?branch=main&style=flat&logo=githubactions)](https://github.com/CultureDigitali/connection-monitor/actions)
 
@@ -26,7 +27,7 @@
 
 ### Stop guessing. Know your connection.
 
-Connection Monitor lives in your menu bar and tells you exactly how good your internet is — right now. Not tomorrow. Not after a speed test. **Right now.**
+Connection Monitor lives in your menu bar or system tray and tells you exactly how good your internet is — right now. Not tomorrow. Not after a speed test. **Right now.**
 
 </div>
 
@@ -48,7 +49,7 @@ Connection Monitor lives in your menu bar and tells you exactly how good your in
 ## 🚀 Features
 
 ### 📊 Real-time bandwidth monitoring
-See your **download** and **upload** speeds live in the menu bar. No delays. No refresh buttons. Just open your Mac and look up.
+See your **download** and **upload** speeds live from the menu bar or Windows system tray. No delays and no refresh buttons.
 
 ### 🎯 Connection quality score (0–100)
 We compute a single score from latency, jitter, packet loss, and WiFi signal. Know instantly if your connection is **excellent**, **good**, **fair**, **poor**, or **critical**.
@@ -71,7 +72,7 @@ A live-updating chart shows the last 60 seconds of your bandwidth usage. Spot pa
 Connection Guardian records interruptions and sustained degradation locally, explains the measured cause, and suggests what to do. Explore 24-hour, 7-day, or 30-day trends without an account or cloud service.
 
 ### ⏪ Internet Replay & Connection Streak
-Replay any measured moment to compare quality, speed, latency, and incidents. Connection Streak highlights consecutive reliable days while keeping every result private on your Mac.
+Replay any measured moment to compare quality, speed, latency, and incidents. Connection Streak highlights consecutive reliable days while keeping every result private on your computer.
 
 ### 🧩 Dedicated floating widget
 Keep download, upload, quality, and session traffic visible in a compact draggable widget. Contextual tooltips and an in-app guide explain every important control.
@@ -83,21 +84,32 @@ Available in **English**, **Italiano**, **Español**, and **Français**.
 - No accounts
 - No analytics
 - No network calls except to your chosen speed test server
-- All data stays on your Mac, always
+- All data stays on your computer, always
 
 ---
 
 ## 📥 Install
 
-### Option 1: Download (Recommended)
+### macOS
 
 Grab the latest DMG from the [Releases](https://github.com/CultureDigitali/connection-monitor/releases) page.
 
-**System Requirements:**
+**Requirements:**
 - macOS 11.0 (Big Sur) or later
 - Apple Silicon (M1/M2/M3/M4)
 
-### Option 2: Build from source
+### Windows
+
+From [Releases](https://github.com/CultureDigitali/connection-monitor/releases), download:
+
+- the `.exe` NSIS installer for the simplest setup (recommended);
+- the `.msi` installer for managed or business deployments.
+
+**Requirements:** Windows 10/11 x64 and Microsoft Edge WebView2.
+
+Windows installers are currently **unsigned installers**. Microsoft SmartScreen may show a warning: choose **More info**, verify the publisher/repository, then **Run anyway** only if you downloaded the file from this official GitHub project.
+
+### Build from source
 
 ```bash
 # Clone
@@ -114,7 +126,7 @@ npm run tauri dev
 npm run tauri build
 ```
 
-The built `.dmg` will be at `src-tauri/target/release/bundle/dmg/`.
+Bundles are written under `src-tauri/target/release/bundle/` (`dmg` on macOS, `nsis` and `msi` on Windows).
 
 ---
 
@@ -122,7 +134,7 @@ The built `.dmg` will be at `src-tauri/target/release/bundle/dmg/`.
 
 <div align="center">
 
-### Menu Bar
+### Menu Bar / System Tray
 ```
 ┌─────────────────────────────────────────────────┐
 │  📶  ↓ 45.2 MB/s  ↑ 12.1 MB/s  Score: 87/100 │
@@ -164,6 +176,7 @@ The built `.dmg` will be at `src-tauri/target/release/bundle/dmg/`.
 - [x] Local Connection Guardian incidents
 - [x] Internet Replay and Connection Streak
 - [x] Dedicated floating widget, tooltips and guide
+- [x] Windows 10/11 x64 with NSIS and MSI installers
 - [ ] Export history to CSV
 - [ ] Intel Mac support
 - [ ] Dark/Light mode toggle

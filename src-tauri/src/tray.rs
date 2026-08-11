@@ -1,11 +1,27 @@
 use tauri::image::Image;
 
+use crate::stats::{ConnectionStats, ConnectionStatus};
 use crate::{hex_to_rgb, ColorPrefs};
 
 pub const DOWNLOAD_ID: &str = "tray-download";
 pub const UPLOAD_ID: &str = "tray-upload";
 pub const QUALITY_ID: &str = "tray-quality";
 pub const DATA_ID: &str = "tray-data";
+pub const WINDOWS_STATUS_ID: &str = "tray-status";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrayMode {
+    MultiIndicator,
+    SingleStatus,
+}
+
+pub fn tray_mode_for_os(os: &str) -> TrayMode {
+    if os == "windows" {
+        TrayMode::SingleStatus
+    } else {
+        TrayMode::MultiIndicator
+    }
+}
 
 #[derive(Clone, Copy)]
 pub enum IndicatorKind {
@@ -33,6 +49,21 @@ pub fn format_data_compact(megabytes: f64) -> String {
     } else {
         format!("{megabytes:.0} MB")
     }
+}
+
+pub fn windows_tooltip(stats: &ConnectionStats) -> String {
+    let quality = if stats.connection_status == ConnectionStatus::Online {
+        format!("{}/100", stats.quality_score)
+    } else {
+        "—".to_string()
+    };
+    format!(
+        "Connection Monitor\n↓ {}  ↑ {}  Qualità {}  Dati {}",
+        format_rate_compact(stats.download_mbps),
+        format_rate_compact(stats.upload_mbps),
+        quality,
+        format_data_compact(stats.total_download_mb + stats.total_upload_mb),
+    )
 }
 
 fn color_for(kind: IndicatorKind, prefs: &ColorPrefs) -> (u8, u8, u8) {
@@ -126,7 +157,11 @@ pub fn indicator_icon(kind: IndicatorKind, prefs: &ColorPrefs) -> Image<'static>
 
 #[cfg(test)]
 mod tests {
-    use super::{format_data_compact, format_rate_compact, indicator_icon, IndicatorKind};
+    use super::{
+        format_data_compact, format_rate_compact, indicator_icon, tray_mode_for_os,
+        windows_tooltip, IndicatorKind, TrayMode,
+    };
+    use crate::stats::{ConnectionStats, ConnectionStatus};
     use crate::ColorPrefs;
 
     #[test]
@@ -152,5 +187,28 @@ mod tests {
             .rgba()
             .chunks_exact(4)
             .any(|pixel| pixel[1] > pixel[0] && pixel[1] > pixel[2]));
+    }
+
+    #[test]
+    fn windows_uses_one_status_tray() {
+        assert_eq!(tray_mode_for_os("windows"), TrayMode::SingleStatus);
+        assert_eq!(tray_mode_for_os("macos"), TrayMode::MultiIndicator);
+    }
+
+    #[test]
+    fn windows_tooltip_contains_all_four_live_values() {
+        let mut stats = ConnectionStats::default();
+        stats.connection_status = ConnectionStatus::Online;
+        stats.download_mbps = 1.2;
+        stats.upload_mbps = 0.4;
+        stats.quality_score = 87;
+        stats.total_download_mb = 1_000.0;
+        stats.total_upload_mb = 536.0;
+
+        let tooltip = windows_tooltip(&stats);
+        assert!(tooltip.contains("↓ 1.2M"));
+        assert!(tooltip.contains("↑ 400K"));
+        assert!(tooltip.contains("87/100"));
+        assert!(tooltip.contains("1.54 GB"));
     }
 }
