@@ -27,8 +27,7 @@ use monitor::speedtest::{run_speed_test, SpeedTestResult};
 use monitor::wifi::WifiMonitor;
 use stats::{ConnectionStats, ConnectionStatus};
 use tray::{
-    format_data_compact, format_rate_compact, indicator_icon, tray_mode_for_os,
-    windows_tooltip, IndicatorKind, TrayMode,
+    format_data_compact, format_rate_compact, indicator_icon, tray_titles_for_os, IndicatorKind,
 };
 
 const CONFIG_DIR_NAME: &str = "connection-monitor";
@@ -581,50 +580,22 @@ pub fn run() {
 
 fn build_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let prefs = ColorPrefs::default();
-    if tray_mode_for_os(std::env::consts::OS) == TrayMode::SingleStatus {
-        let icon = app
-            .default_window_icon()
-            .cloned()
-            .unwrap_or_else(|| indicator_icon(IndicatorKind::Quality(0), &prefs));
-        tauri::tray::TrayIconBuilder::with_id(tray::WINDOWS_STATUS_ID)
-            .tooltip(windows_tooltip(&ConnectionStats::default()))
-            .icon(icon)
-            .on_tray_icon_event(|tray, event| {
-                if let tauri::tray::TrayIconEvent::Click {
-                    button: tauri::tray::MouseButton::Left,
-                    button_state: tauri::tray::MouseButtonState::Up,
-                    ..
-                } = event
-                {
-                    let app = tray.app_handle();
-                    if let Some(win) = app.get_webview_window("main") {
-                        let is_visible = win.is_visible().unwrap_or(false);
-                        if is_visible {
-                            let _ = win.hide();
-                        } else {
-                            let _ = win.show();
-                            let _ = win.set_focus();
-                            position_window_near_tray(&win);
-                        }
-                    }
-                }
-            })
-            .build(app)?;
-        return Ok(());
-    }
-
+    let show_titles = tray_titles_for_os(std::env::consts::OS);
     let indicators = [
-        (tray::DOWNLOAD_ID, IndicatorKind::Download, "0K"),
-        (tray::UPLOAD_ID, IndicatorKind::Upload, "0K"),
-        (tray::QUALITY_ID, IndicatorKind::Quality(0), "…"),
-        (tray::DATA_ID, IndicatorKind::Data, "0 MB"),
+        (IndicatorKind::Download, "0K"),
+        (IndicatorKind::Upload, "0K"),
+        (IndicatorKind::Quality(0), "…"),
+        (IndicatorKind::Data, "0 MB"),
     ];
 
-    for (id, kind, title) in indicators {
+    for (id, (kind, title)) in tray::INDICATOR_IDS.into_iter().zip(indicators) {
         let mut builder = tauri::tray::TrayIconBuilder::with_id(id)
             .tooltip("Connection Monitor")
-            .title(title)
             .icon(indicator_icon(kind, &prefs));
+
+        if show_titles {
+            builder = builder.title(title);
+        }
 
         #[cfg(target_os = "macos")]
         {
@@ -659,13 +630,7 @@ fn build_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn update_trays(app: &AppHandle, stats: &ConnectionStats, prefs: &ColorPrefs) {
-    if tray_mode_for_os(std::env::consts::OS) == TrayMode::SingleStatus {
-        if let Some(item) = app.tray_by_id(tray::WINDOWS_STATUS_ID) {
-            let _ = item.set_tooltip(Some(windows_tooltip(stats)));
-        }
-        return;
-    }
-
+    let show_titles = tray_titles_for_os(std::env::consts::OS);
     let values = [
         (
             tray::DOWNLOAD_ID,
@@ -703,7 +668,9 @@ fn update_trays(app: &AppHandle, stats: &ConnectionStats, prefs: &ColorPrefs) {
     for (id, kind, title, tooltip) in values {
         if let Some(item) = app.tray_by_id(id) {
             let _ = item.set_icon(Some(indicator_icon(kind, prefs)));
-            let _ = item.set_title(Some(title));
+            if show_titles {
+                let _ = item.set_title(Some(title));
+            }
             let _ = item.set_tooltip(Some(tooltip));
         }
     }
