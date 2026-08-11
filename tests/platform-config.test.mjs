@@ -28,3 +28,11 @@ test("package metadata and Windows dependencies target version 0.3.1", async () 
   assert.match(cargo, /cfg\(target_os = "windows"\)/);
   assert.match(cargo, /Win32_NetworkManagement_WiFi/);
 });
+
+test("Windows release binary uses the GUI subsystem", async () => {
+  const main = await readFile("src-tauri/src/main.rs", "utf8");
+  assert.match(
+    main,
+    /#!\[cfg_attr\(\s*all\(not\(debug_assertions\), target_os = "windows"\),\s*windows_subsystem = "windows"\s*\)\]/,
+  );
+});
