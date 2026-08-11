@@ -11,9 +11,7 @@
         <header>
             <div class="header-left">
                 <div class="app-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
-                    </svg>
+                    <img data-app-logo alt="Connection Monitor" />
                 </div>
                 <h1 data-i18n="appTitle">Connection Monitor</h1>
             </div>
@@ -43,7 +41,7 @@
 
         <nav class="tabs">
             <button class="tab active" data-tab="monitor" data-i18n="tabMonitor">Monitor</button>
-            <button class="tab" data-tab="credits" data-i18n="tabCredits">Credits</button>
+            <button class="tab" data-tab="info" data-i18n="tabInfo">Info</button>
         </nav>
 
         <div class="tab-content" id="tab-monitor">
@@ -164,55 +162,51 @@
         </footer>
         </div>
 
-        <div class="tab-content hidden" id="tab-credits">
-            <div class="credits-container">
-                <div class="credits-logo">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
-                    </svg>
+        <div class="tab-content hidden" id="tab-info">
+            <div class="info-container">
+                <div class="info-hero">
+                    <div class="info-logo-shell">
+                        <img data-app-logo alt="Connection Monitor" />
+                    </div>
+                    <div>
+                        <h2 class="info-title">Connection Monitor</h2>
+                        <span class="info-version" id="info-version">v0.2.1</span>
+                    </div>
                 </div>
-                <h2 class="credits-title">Connection Monitor</h2>
-                <p class="credits-version" id="credits-version">v0.1.0</p>
 
-                <div class="credits-section">
-                    <h3>Developed by</h3>
-                    <div class="credits-card">
-                        <div class="credits-person">
+                <div class="info-card">
+                    <span class="info-eyebrow" data-i18n="infoDevelopedBy">Developed by</span>
+                    <div class="info-card-heading">
+                        <div>
                             <strong>Luigi Strazzullo</strong>
-                            <span class="credits-role">Software Developer & Digital Consultant</span>
-                            <a href="#" class="credits-link" data-url="https://linkedin.com/in/luigistrazzullo">LinkedIn</a>
-                            <a href="#" class="credits-link" data-url="https://luigistrazzullo.it">luigistrazzullo.it</a>
+                            <p data-i18n="infoDeveloperRole">Software Developer & Digital Consultant</p>
                         </div>
+                        <span class="info-avatar">LS</span>
+                    </div>
+                    <div class="info-links">
+                        <a href="#" class="info-link external-link" data-url="https://luigistrazzullo.it">Sito web</a>
+                        <a href="#" class="info-link external-link" data-url="https://linkedin.com/in/luigistrazzullo">LinkedIn</a>
                     </div>
                 </div>
 
-                <div class="credits-section">
-                    <h3>For</h3>
-                    <div class="credits-card">
-                        <div class="credits-company">
+                <div class="info-card company">
+                    <span class="info-eyebrow" data-i18n="infoFor">For</span>
+                    <div class="info-card-heading">
+                        <div>
                             <strong>Culture Digitali Srl</strong>
-                            <span class="credits-role">Startup Innovativa - Digitalizzazione & Formazione</span>
-                            <p class="credits-desc">Premiata da OVH, Amazon, MiBac e Google for Startups. Specializzata in digitalizzazione, software gestionali, AI e consulenza per la PA.</p>
-                            <div class="credits-links">
-                                <a href="#" class="credits-link" data-url="https://culturedigitali.eu">culturedigitali.eu</a>
-                                <a href="#" class="credits-link" data-url="https://linkedin.com/company/culture-digitali">LinkedIn</a>
-                            </div>
-                            <div class="credits-contact">
-                                <p><strong>Email:</strong> <a href="#" class="credits-link" data-url="mailto:info@culturedigitali.eu">info@culturedigitali.eu</a></p>
-                                <p><strong>Phone:</strong> (+39) 081 180 88 248</p>
-                                <p><strong>Address:</strong> Via Coroglio 57D, 80124 Napoli</p>
-                                <p><strong>P.IVA:</strong> 09465861210</p>
-                            </div>
+                            <p data-i18n="infoCompanyRole">Innovative startup · Digital products and AI</p>
                         </div>
+                        <span class="info-company-mark">CD</span>
+                    </div>
+                    <div class="info-links">
+                        <a href="#" class="info-link external-link" data-url="https://culturedigitali.eu">culturedigitali.eu</a>
+                        <a href="#" class="info-link external-link" data-url="mailto:info@culturedigitali.eu">Email</a>
                     </div>
                 </div>
 
-                <div class="credits-section">
-                    <h3>License</h3>
-                    <div class="credits-card">
-                        <p>MIT License - Open Source Software</p>
-                        <p class="credits-small">Made with love in Naples, Italy</p>
-                    </div>
+                <div class="info-footer">
+                    <span data-i18n="infoLicense">Open source · MIT License</span>
+                    <span data-i18n="infoMadeIn">Designed and developed in Naples, Italy</span>
                 </div>
             </div>
         </div>

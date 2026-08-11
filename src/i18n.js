@@ -41,6 +41,7 @@ const translations = {
         closeBtn: 'Close',
         tabMonitor: 'Monitor',
         tabCredits: 'Credits',
+        tabInfo: 'Info',
         diagnosticWhy: 'Why',
         diagnosticAction: 'What to do',
         diagnosticDetails: 'Details',
@@ -58,7 +59,13 @@ const translations = {
         recommendation_latency: 'Pause VPNs or heavy transfers and retry; remote servers can also add delay.',
         recommendation_jitter: 'Prefer Ethernet or 5 GHz Wi-Fi and move closer to the router.',
         recommendation_packet_loss: 'Restart the router and check cables or Wi-Fi interference.',
-        recommendation_wifi: 'Move closer to the router or switch to 5 GHz Wi-Fi or Ethernet.'
+        recommendation_wifi: 'Move closer to the router or switch to 5 GHz Wi-Fi or Ethernet.',
+        infoDevelopedBy: 'Developed by',
+        infoFor: 'For',
+        infoDeveloperRole: 'Software Developer & Digital Consultant',
+        infoCompanyRole: 'Innovative startup · Digital products and AI',
+        infoLicense: 'Open source · MIT License',
+        infoMadeIn: 'Designed and developed in Naples, Italy'
     },
     it: {
         appTitle: 'Monitor Connessione',
@@ -102,6 +109,7 @@ const translations = {
         closeBtn: 'Chiudi',
         tabMonitor: 'Monitor',
         tabCredits: 'Crediti',
+        tabInfo: 'Info',
         diagnosticWhy: 'Perché',
         diagnosticAction: 'Cosa fare',
         diagnosticDetails: 'Dettagli',
@@ -119,7 +127,13 @@ const translations = {
         recommendation_latency: 'Sospendi VPN o trasferimenti pesanti e riprova; anche server lontani aumentano il ritardo.',
         recommendation_jitter: 'Preferisci Ethernet o Wi-Fi 5 GHz e avvicinati al router.',
         recommendation_packet_loss: 'Riavvia il router e controlla cavi o interferenze Wi-Fi.',
-        recommendation_wifi: 'Avvicinati al router oppure passa a Wi-Fi 5 GHz o Ethernet.'
+        recommendation_wifi: 'Avvicinati al router oppure passa a Wi-Fi 5 GHz o Ethernet.',
+        infoDevelopedBy: 'Sviluppata da',
+        infoFor: 'Per',
+        infoDeveloperRole: 'Software Developer & Digital Consultant',
+        infoCompanyRole: 'Startup innovativa · Prodotti digitali e AI',
+        infoLicense: 'Open source · Licenza MIT',
+        infoMadeIn: 'Progettata e sviluppata a Napoli'
     },
     es: {
         appTitle: 'Monitor de Conexion',
@@ -163,6 +177,7 @@ const translations = {
         closeBtn: 'Cerrar',
         tabMonitor: 'Monitor',
         tabCredits: 'Creditos',
+        tabInfo: 'Info',
         diagnosticWhy: 'Por qué',
         diagnosticAction: 'Qué hacer',
         diagnosticDetails: 'Detalles',
@@ -180,7 +195,13 @@ const translations = {
         recommendation_latency: 'Pausa la VPN o transferencias pesadas y repite; los servidores lejanos también añaden retraso.',
         recommendation_jitter: 'Prefiere Ethernet o Wi-Fi de 5 GHz y acércate al router.',
         recommendation_packet_loss: 'Reinicia el router y comprueba cables o interferencias Wi-Fi.',
-        recommendation_wifi: 'Acércate al router o cambia a Wi-Fi de 5 GHz o Ethernet.'
+        recommendation_wifi: 'Acércate al router o cambia a Wi-Fi de 5 GHz o Ethernet.',
+        infoDevelopedBy: 'Desarrollada por',
+        infoFor: 'Para',
+        infoDeveloperRole: 'Desarrollador de software y consultor digital',
+        infoCompanyRole: 'Startup innovadora · Productos digitales e IA',
+        infoLicense: 'Código abierto · Licencia MIT',
+        infoMadeIn: 'Diseñada y desarrollada en Nápoles'
     },
     fr: {
         appTitle: 'Moniteur Connexion',
@@ -224,6 +245,7 @@ const translations = {
         closeBtn: 'Fermer',
         tabMonitor: 'Moniteur',
         tabCredits: 'Credits',
+        tabInfo: 'Info',
         diagnosticWhy: 'Pourquoi',
         diagnosticAction: 'Que faire',
         diagnosticDetails: 'Détails',
@@ -241,7 +263,13 @@ const translations = {
         recommendation_latency: 'Suspendez le VPN ou les transferts lourds; les serveurs distants ajoutent aussi du délai.',
         recommendation_jitter: 'Préférez Ethernet ou le Wi-Fi 5 GHz et rapprochez-vous du routeur.',
         recommendation_packet_loss: 'Redémarrez le routeur et vérifiez les câbles ou interférences Wi-Fi.',
-        recommendation_wifi: 'Rapprochez-vous du routeur ou passez au Wi-Fi 5 GHz ou à Ethernet.'
+        recommendation_wifi: 'Rapprochez-vous du routeur ou passez au Wi-Fi 5 GHz ou à Ethernet.',
+        infoDevelopedBy: 'Développée par',
+        infoFor: 'Pour',
+        infoDeveloperRole: 'Développeur logiciel et consultant numérique',
+        infoCompanyRole: 'Startup innovante · Produits numériques et IA',
+        infoLicense: 'Open source · Licence MIT',
+        infoMadeIn: 'Conçue et développée à Naples'
     }
 };
 
@@ -274,5 +302,5 @@ class I18n {
 
 const i18n = new I18n();
 
-window.i18n = i18n;
-export { i18n };
+if (typeof window !== 'undefined') window.i18n = i18n;
+export { i18n, translations };

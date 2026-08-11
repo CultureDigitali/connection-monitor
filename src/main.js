@@ -2,6 +2,8 @@ import { bindWindowVisibility } from './window-visibility.js';
 import { formatData, formatRate } from './formatters.js';
 import { i18n } from './i18n.js';
 import { buildDiagnosticModel } from './diagnostics.js';
+import { applyOfficialLogo } from './branding.js';
+import officialLogoUrl from '../src-tauri/icons/128x128.png';
 
 function applyTranslations() {
     document.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -49,7 +51,7 @@ class ConnectionMonitor {
             });
         });
 
-        document.querySelectorAll('.credits-link').forEach((link) => {
+        document.querySelectorAll('.external-link').forEach((link) => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const url = link.dataset.url;
@@ -61,7 +63,7 @@ class ConnectionMonitor {
 
         if (window.__TAURI_INTERNALS__) {
             window.__TAURI__.core.invoke('get_app_version').then((v) => {
-                const el = document.getElementById('credits-version');
+                const el = document.getElementById('info-version');
                 if (el) el.textContent = `v${v}`;
             }).catch(() => {});
         }
@@ -480,5 +482,6 @@ class BandwidthChart {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    applyOfficialLogo(document.querySelectorAll('[data-app-logo]'), officialLogoUrl, 'Connection Monitor');
     new ConnectionMonitor();
 });
