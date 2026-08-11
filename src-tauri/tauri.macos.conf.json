@@ -1,0 +1,13 @@
+{
+  "app": {
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "category": "public.app-category.utilities",
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    }
+  }
+}
