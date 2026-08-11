@@ -10,7 +10,11 @@ test("platform configs isolate macOS and Windows bundles", async () => {
   const windows = await readJson("src-tauri/tauri.windows.conf.json");
 
   assert.equal(common.version, "0.3.1");
-  assert.equal(common.app.macOSPrivateApi, undefined);
+  // Tauri validates dependency features against the merged config on every OS.
+  // Keep this flag aligned with the common `tauri/macos-private-api` feature;
+  // the API remains a no-op outside macOS.
+  assert.equal(common.app.macOSPrivateApi, true);
+  assert.equal(mac.app, undefined);
   assert.deepEqual(mac.bundle.targets, ["app", "dmg"]);
   assert.deepEqual(windows.bundle.targets, ["nsis", "msi"]);
 });
