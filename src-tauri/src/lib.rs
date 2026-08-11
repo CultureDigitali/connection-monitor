@@ -263,18 +263,22 @@ fn spawn_monitor_loop(app: AppHandle, state: Arc<AppState>) {
                 } else {
                     ConnectionStatus::Offline
                 };
-                let raw_quality = ConnectionStats::calculate_quality(
+                let assessment = ConnectionStats::assess_quality(
                     ping_result.avg_latency,
                     ping_result.jitter_ms,
                     ping_result.packet_loss,
                     wifi.signal_dbm,
                 );
-                let (quality_score, quality_label_key) =
+                let (quality_score, quality_label_key, quality_issues) =
                     if connection_status == ConnectionStatus::Online {
                         let mut previous = state.smoothed_quality.lock();
-                        let (score, smoothed) = stats::smooth_quality(*previous, raw_quality.0);
+                        let (score, smoothed) = stats::smooth_quality(*previous, assessment.score);
                         *previous = Some(smoothed);
-                        (score, ConnectionStats::label_for_score(score).to_string())
+                        (
+                            score,
+                            ConnectionStats::label_for_score(score).to_string(),
+                            assessment.issues,
+                        )
                     } else {
                         *state.smoothed_quality.lock() = None;
                         let label = if connection_status == ConnectionStatus::Connecting {
@@ -282,7 +286,7 @@ fn spawn_monitor_loop(app: AppHandle, state: Arc<AppState>) {
                         } else {
                             "quality_disconnected"
                         };
-                        (0, label.to_string())
+                        (0, label.to_string(), Vec::new())
                     };
 
                 ConnectionStats {
@@ -301,6 +305,7 @@ fn spawn_monitor_loop(app: AppHandle, state: Arc<AppState>) {
                     quality_score,
                     quality_score_i32: i32::from(quality_score),
                     quality_label_key,
+                    quality_issues,
                     uptime_seconds: state.start_time.elapsed().as_secs(),
                     bandwidth_history: history,
                     is_connected: connection_status == ConnectionStatus::Online,
