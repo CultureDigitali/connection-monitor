@@ -27,3 +27,21 @@ test('every supported language includes diagnostic labels and recommendations', 
         for (const key of required) assert.ok(translations[language][key], `${language}.${key}`);
     }
 });
+
+test('every language has identical keys for statistics, Guardian, guide, and tooltips', () => {
+    const required = [
+        'tabStatistics', 'historyAverageQuality', 'historyAvailability', 'historyIncidents',
+        'historyTransferred', 'historyEmpty', 'historyUnavailable', 'guardianTitle',
+        'guardianDegraded', 'guardianOffline', 'guardianNoIncidents', 'streakReliableDays',
+        'streakBest', 'guideTitle', 'guideStepLiveTitle', 'guideStepWidgetTitle',
+        'guideStepHistoryTitle', 'guideNext', 'guideBack', 'guideDone', 'guideSkip',
+        'tooltipWidgetDownload', 'tooltipWidgetUpload', 'tooltipWidgetQuality',
+        'tooltipWidgetData', 'tooltipReplay', 'tooltipStreak',
+    ];
+    const languages = ['en', 'it', 'es', 'fr'];
+    const englishKeys = Object.keys(translations.en).sort();
+    for (const language of languages) {
+        assert.deepEqual(Object.keys(translations[language]).sort(), englishKeys, `${language} key parity`);
+        for (const key of required) assert.ok(translations[language][key], `${language}.${key}`);
+    }
+});

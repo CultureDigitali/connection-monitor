@@ -1,8 +1,10 @@
 import { buildFloatingModel } from './floating-model.js';
 import { i18n } from './i18n.js';
+import { bindTooltips } from './tooltips.js';
 
 let stats = {};
 const cleanups = [];
+const cleanupTooltips = bindTooltips(document, (key) => i18n.t(key));
 
 function render() {
     const model = buildFloatingModel(stats, (key) => i18n.t(key));
@@ -51,6 +53,7 @@ document.getElementById('floating-close').addEventListener('click', () => {
 
 window.addEventListener('beforeunload', () => {
     for (const cleanup of cleanups) cleanup();
+    cleanupTooltips();
 });
 
 initialize();

@@ -5,6 +5,8 @@ import { buildDiagnosticModel } from './diagnostics.js';
 import { applyOfficialLogo } from './branding.js';
 import { buildHistoryView, findIncidentAt, selectReplayPoint } from './history-model.js';
 import { HistoryChart } from './history-chart.js';
+import { bindTooltips } from './tooltips.js';
+import { bindGuide, GuideState } from './guide.js';
 import officialLogoUrl from '../src-tauri/icons/128x128.png';
 
 function applyTranslations() {
@@ -37,6 +39,9 @@ class ConnectionMonitor {
         this.speedTestRunning = false;
         this.diagnosticsExpanded = false;
         this.unsubs = [];
+        this.tooltipCleanup = bindTooltips(document, (key) => i18n.t(key));
+        this.guide = bindGuide(document, new GuideState(localStorage, '0.3'), (key) => i18n.t(key));
+        i18n.onChange(() => this.guide.render());
 
         this.setupTabs();
         this.setupHistoryControls();
@@ -93,6 +98,8 @@ class ConnectionMonitor {
         }
         i18n.setLanguage(lang);
         applyTranslations();
+        this.guide.render();
+        this.guide.open();
     }
 
     async setupEventListeners() {
@@ -204,6 +211,7 @@ class ConnectionMonitor {
         });
         window.addEventListener('beforeunload', () => {
             for (const unsubscribe of this.unsubs) unsubscribe();
+            this.tooltipCleanup();
         });
     }
 
