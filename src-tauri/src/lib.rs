@@ -1,32 +1,43 @@
+use chrono::Local;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager, State, Emitter};
-use tauri::image::Image as TauriImage;
+use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_updater::UpdaterExt;
 
+mod history;
 mod i18n;
 mod monitor;
 mod stats;
+mod tray;
 
+use history::guardian::{GuardianEngine, GuardianTransition};
+use history::model::{build_daily_reliability, calculate_streak, summarize};
+use history::recorder::HistoryRecorder;
+use history::store::HistoryStore;
+use history::{day_bounds, range_start, HistoryResponse, ReplayResponse};
 use i18n::{translate, I18n, Language};
 use monitor::bandwidth::BandwidthMonitor;
 use monitor::notify::{Notification, Notifier};
-use monitor::ping::{PingMonitor, do_ping};
+use monitor::ping::{do_ping, PingMonitor};
 use monitor::speedtest::{run_speed_test, SpeedTestResult};
 use monitor::wifi::WifiMonitor;
-use stats::ConnectionStats;
+use stats::{ConnectionStats, ConnectionStatus};
+use tray::{format_data_compact, format_rate_compact, indicator_icon, IndicatorKind};
 
 const CONFIG_DIR_NAME: &str = "connection-monitor";
 const CONFIG_FILE_NAME: &str = "lang.conf";
 const COLORS_FILE_NAME: &str = "colors.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ColorPrefs {
     pub download: String,
     pub upload: String,
+    pub data: String,
     pub quality_excellent: String,
     pub quality_good: String,
     pub quality_fair: String,
@@ -39,6 +50,7 @@ impl Default for ColorPrefs {
         ColorPrefs {
             download: "#34d399".to_string(),
             upload: "#60a5fa".to_string(),
+            data: "#a78bfa".to_string(),
             quality_excellent: "#34d399".to_string(),
             quality_good: "#a78bfa".to_string(),
             quality_fair: "#fbbf24".to_string(),
@@ -50,6 +62,10 @@ impl Default for ColorPrefs {
 
 fn config_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join(CONFIG_DIR_NAME))
+}
+
+fn history_path() -> Option<PathBuf> {
+    dirs::data_local_dir().map(|directory| directory.join(CONFIG_DIR_NAME).join("history.json"))
 }
 
 fn load_language() -> Language {
@@ -102,103 +118,13 @@ fn save_colors(prefs: &ColorPrefs) {
 
 fn hex_to_rgb(hex: &str) -> (u8, u8, u8) {
     let hex = hex.trim_start_matches('#');
+    if hex.len() != 6 {
+        return (152, 211, 153);
+    }
     let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(152);
     let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(211);
     let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(153);
     (r, g, b)
-}
-
-fn generate_tray_icon(download_mbps: f64, upload_mbps: f64, quality_score: u8, prefs: &ColorPrefs) -> TauriImage<'static> {
-    use image::codecs::png::PngEncoder;
-    use image::ImageEncoder;
-    use image::ExtendedColorType;
-
-    let width: u32 = 24;
-    let height: u32 = 24;
-    let mut img = image::RgbaImage::new(width, height);
-
-    let (dl_r, dl_g, dl_b) = if download_mbps > 0.0 {
-        hex_to_rgb(&prefs.download)
-    } else {
-        (150, 150, 150)
-    };
-
-    let (ul_r, ul_g, ul_b) = if upload_mbps > 0.0 {
-        hex_to_rgb(&prefs.upload)
-    } else {
-        (150, 150, 150)
-    };
-
-    let q_color = if quality_score >= 90 {
-        hex_to_rgb(&prefs.quality_excellent)
-    } else if quality_score >= 75 {
-        hex_to_rgb(&prefs.quality_good)
-    } else if quality_score >= 50 {
-        hex_to_rgb(&prefs.quality_fair)
-    } else if quality_score >= 25 {
-        hex_to_rgb(&prefs.quality_poor)
-    } else {
-        hex_to_rgb(&prefs.quality_critical)
-    };
-
-    for (x, y, pixel) in img.enumerate_pixels_mut() {
-        let px = x as i32;
-        let py = y as i32;
-
-        if is_in_triangle(px, py, 5, 5, 10, 2, 17, 5) {
-            pixel[0] = ul_r; pixel[1] = ul_g; pixel[2] = ul_b; pixel[3] = 255;
-        } else if is_in_triangle(px, py, 7, 19, 17, 10, 13, 20) {
-            pixel[0] = dl_r; pixel[1] = dl_g; pixel[2] = dl_b; pixel[3] = 255;
-        } else if is_in_circle(px, py, 12, 12, 4) {
-            let dist_sq = (px - 12) * (px - 12) + (py - 12) * (py - 12);
-            if dist_sq <= 16 {
-                pixel[0] = q_color.0; pixel[1] = q_color.1; pixel[2] = q_color.2; pixel[3] = 255;
-            } else {
-                pixel[3] = 0;
-            }
-        } else {
-            pixel[3] = 0;
-        }
-    }
-
-    let mut bytes: Vec<u8> = Vec::new();
-    let writer = std::io::Cursor::new(&mut bytes);
-    let encoder = PngEncoder::new(writer);
-    let raw = img.as_raw();
-    let ok = encoder.write_image(raw, width, height, ExtendedColorType::Rgba8).is_ok();
-
-    if ok {
-        return match TauriImage::from_bytes(&bytes) {
-            Ok(icon) => icon,
-            Err(_) => load_default_icon(),
-        };
-    }
-    load_default_icon()
-}
-
-fn load_default_icon() -> TauriImage<'static> {
-    if let Ok(icon) = TauriImage::from_path("icons/32x32.png") {
-        return icon;
-    }
-    let fallback: Vec<u8> = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    TauriImage::from_bytes(&fallback)
-        .unwrap_or_else(|_| TauriImage::from_bytes(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-            .unwrap_or_else(|_| TauriImage::from_bytes(&[]).unwrap()))
-}
-
-fn is_in_triangle(px: i32, py: i32, x1: i32, y1: i32, x2: i32, y2: i32, x3: i32, y3: i32) -> bool {
-    let d = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
-    if d == 0 { return false; }
-    let a = ((y2 - y3) as f64 * (px - x3) as f64 + (x3 - x2) as f64 * (py - y3) as f64) / d as f64;
-    let b = ((y3 - y1) as f64 * (px - x3) as f64 + (x1 - x3) as f64 * (py - y3) as f64) / d as f64;
-    let c = 1.0 - a - b;
-    a >= 0.0 && b >= 0.0 && c >= 0.0
-}
-
-fn is_in_circle(px: i32, py: i32, _cx: i32, _cy: i32, radius: i32) -> bool {
-    let dx = px - 15;
-    let dy = py - 12;
-    dx * dx + dy * dy <= radius * radius + radius
 }
 
 #[tauri::command]
@@ -250,65 +176,42 @@ fn change_colors(colors: ColorPrefs, state: State<'_, AppState>) {
 
 #[tauri::command]
 fn get_bandwidth(state: State<'_, AppState>) -> ConnectionStats {
-    let lang = state.i18n.get();
+    state.latest_stats.lock().clone()
+}
 
-    let bw = state.bandwidth.lock();
-    let (dl, ul) = bw.get_rolling_speed();
-    let history = bw
-        .get_history()
-        .iter()
-        .map(|s| (s.timestamp, s.download_mbps, s.upload_mbps))
-        .collect();
-    drop(bw);
+#[tauri::command]
+fn get_history(range: String, state: State<'_, AppState>) -> Result<HistoryResponse, String> {
+    let now = Local::now().timestamp();
+    let started_at = range_start(&range, now).ok_or_else(|| "invalid history range".to_string())?;
+    let store = state.history_store.lock();
+    let selected = store.query_range(started_at, now);
+    let summary = summarize(&selected.buckets, selected.incidents.len());
+    let today = Local::now().format("%Y-%m-%d").to_string();
+    let days = build_daily_reliability(&store.document().buckets, &today);
+    let streak = calculate_streak(&days, &today);
+    Ok(HistoryResponse {
+        range,
+        started_at,
+        ended_at: now,
+        summary,
+        buckets: selected.buckets,
+        incidents: selected.incidents,
+        streak,
+    })
+}
 
-    let ping_monitor = state.ping.lock();
-    let ping_result = ping_monitor.compute_stats();
-    drop(ping_monitor);
-
-    let wifi = WifiMonitor::get_wifi_info();
-    let quality = ConnectionStats::calculate_quality(
-        ping_result.avg_latency,
-        ping_result.jitter_ms,
-        ping_result.packet_loss,
-        wifi.signal_dbm,
-    );
-
-    let total_bytes_result = {
-        let bw2 = state.bandwidth.lock();
-        let res = bw2.measure();
-        (res.total_download_mb, res.total_upload_mb)
-    };
-
-    let is_connected = ping_result.latency_ms.is_some()
-        || ping_result.packet_loss < 100.0
-        || total_bytes_result.0 > 0.0 || total_bytes_result.1 > 0.0;
-
-    let elapsed = state.start_time.elapsed().as_secs();
-    let wifi_quality_label = wifi
-        .signal_dbm
-        .map(|s| WifiMonitor::signal_quality(s).to_string())
-        .unwrap_or_else(|| "N/A".to_string());
-
-    ConnectionStats {
-        download_mbps: dl,
-        upload_mbps: ul,
-        ping_ms: ping_result.avg_latency,
-        jitter_ms: ping_result.jitter_ms,
-        packet_loss: ping_result.packet_loss,
-        wifi_ssid: wifi.ssid,
-        wifi_signal: wifi.signal_dbm,
-        wifi_quality: wifi_quality_label,
-        dns_ms: None,
-        quality_score: quality.0,
-        quality_score_i32: quality.1,
-        uptime_seconds: elapsed,
-        bandwidth_history: history,
-        is_connected,
-        language: lang.code().to_string(),
-        quality_label_key: quality.2,
-        total_download_mb: total_bytes_result.0,
-        total_upload_mb: total_bytes_result.1,
-    }
+#[tauri::command]
+fn get_replay(day: String, state: State<'_, AppState>) -> Result<ReplayResponse, String> {
+    let (started_at, ended_at) =
+        day_bounds(&day).ok_or_else(|| "invalid replay day".to_string())?;
+    let selected = state.history_store.lock().query_range(started_at, ended_at);
+    Ok(ReplayResponse {
+        day,
+        started_at,
+        ended_at,
+        buckets: selected.buckets,
+        incidents: selected.incidents,
+    })
 }
 
 #[tauri::command]
@@ -361,6 +264,11 @@ struct AppState {
     notifier: Arc<Mutex<Notifier>>,
     i18n: Arc<I18n>,
     colors: Arc<Mutex<ColorPrefs>>,
+    latest_stats: Arc<Mutex<ConnectionStats>>,
+    smoothed_quality: Arc<Mutex<Option<f64>>>,
+    history_recorder: Arc<Mutex<HistoryRecorder>>,
+    guardian: Arc<Mutex<GuardianEngine>>,
+    history_store: Arc<Mutex<HistoryStore>>,
     start_time: Instant,
 }
 
@@ -380,65 +288,102 @@ fn spawn_monitor_loop(app: AppHandle, state: Arc<AppState>) {
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
 
-            let (dl, ul, total_dl, total_ul, quality_score, is_connected, quality_label_key) = {
+            let stats = {
                 let bw = state.bandwidth.lock();
-                let (d, u) = bw.get_rolling_speed();
                 let res = bw.measure();
+                let (download_mbps, upload_mbps) = bw.get_rolling_speed();
+                let history = bw
+                    .get_history()
+                    .iter()
+                    .map(|sample| (sample.timestamp, sample.download_mbps, sample.upload_mbps))
+                    .collect();
                 drop(bw);
 
                 let ping_monitor = state.ping.lock();
                 let ping_result = ping_monitor.compute_stats();
+                let has_probe = ping_monitor.has_samples();
                 drop(ping_monitor);
 
-                let is_conn = ping_result.latency_ms.is_some()
-                    || ping_result.packet_loss < 100.0
-                    || res.total_download_mb > 0.0 || res.total_upload_mb > 0.0;
-
                 let wifi = WifiMonitor::get_wifi_info();
-                let quality = ConnectionStats::calculate_quality(
+                let connection_status = if !has_probe {
+                    ConnectionStatus::Connecting
+                } else if ping_result.latency_ms.is_some() {
+                    ConnectionStatus::Online
+                } else {
+                    ConnectionStatus::Offline
+                };
+                let assessment = ConnectionStats::assess_quality(
                     ping_result.avg_latency,
                     ping_result.jitter_ms,
                     ping_result.packet_loss,
                     wifi.signal_dbm,
                 );
+                let (quality_score, quality_label_key, quality_issues) =
+                    if connection_status == ConnectionStatus::Online {
+                        let mut previous = state.smoothed_quality.lock();
+                        let (score, smoothed) = stats::smooth_quality(*previous, assessment.score);
+                        *previous = Some(smoothed);
+                        (
+                            score,
+                            ConnectionStats::label_for_score(score).to_string(),
+                            assessment.issues,
+                        )
+                    } else {
+                        *state.smoothed_quality.lock() = None;
+                        let label = if connection_status == ConnectionStatus::Connecting {
+                            "quality_connecting"
+                        } else {
+                            "quality_disconnected"
+                        };
+                        (0, label.to_string(), Vec::new())
+                    };
 
-                (d, u, res.total_download_mb, res.total_upload_mb, quality.0, is_conn, quality.2)
+                ConnectionStats {
+                    download_mbps,
+                    upload_mbps,
+                    ping_ms: ping_result.latency_ms.unwrap_or(0.0),
+                    jitter_ms: ping_result.jitter_ms,
+                    packet_loss: ping_result.packet_loss,
+                    wifi_ssid: wifi.ssid,
+                    wifi_signal: wifi.signal_dbm,
+                    wifi_quality: wifi
+                        .signal_dbm
+                        .map(|signal| WifiMonitor::signal_quality(signal).to_string())
+                        .unwrap_or_else(|| "N/A".to_string()),
+                    dns_ms: None,
+                    quality_score,
+                    quality_score_i32: i32::from(quality_score),
+                    quality_label_key,
+                    quality_issues,
+                    uptime_seconds: state.start_time.elapsed().as_secs(),
+                    bandwidth_history: history,
+                    is_connected: connection_status == ConnectionStatus::Online,
+                    connection_status,
+                    language: state.i18n.get().code().to_string(),
+                    total_download_mb: res.total_download_mb,
+                    total_upload_mb: res.total_upload_mb,
+                }
             };
 
-            let _ = app.emit("stats-update", ());
-
-            let colors = state.colors.lock();
-            let icon = generate_tray_icon(dl, ul, quality_score, &colors);
-            drop(colors);
-
-            let tooltip = if !is_connected {
-                translate(state.i18n.get(), "quality_disconnected")
-            } else {
-                let dl_val = if dl >= 1000.0 { format!("{:.1}k", dl / 1000.0) } else { format!("{:.1}", dl) };
-                let ul_val = if ul >= 1000.0 { format!("{:.1}k", ul / 1000.0) } else { format!("{:.1}", ul) };
-                format!(
-                    "{} | \u{2193}{} \u{2191}{} MB/s | Score: {}",
-                    translate(state.i18n.get(), "app_title"),
-                    dl_val,
-                    ul_val,
-                    quality_score
-                )
-            };
-
-            if let Some(tray) = app.tray_by_id("main-tray") {
-                let _ = tray.set_icon(Some(icon));
-                let _ = tray.set_tooltip(Some(&tooltip));
+            *state.latest_stats.lock() = stats.clone();
+            let now = Local::now().timestamp();
+            let completed_bucket = state.history_recorder.lock().record(now, &stats);
+            let transition = state.guardian.lock().evaluate(now, &stats);
+            let history_changed =
+                completed_bucket.is_some() || !matches!(&transition, GuardianTransition::None);
+            if history_changed {
+                let mut store = state.history_store.lock();
+                if let Some(bucket) = completed_bucket {
+                    store.append_bucket(bucket, now);
+                }
+                store.apply_transition(transition, now);
+                if let Err(error) = store.save_atomic() {
+                    eprintln!("failed to save connection history: {error}");
+                }
+                let _ = app.emit("history-updated", ());
             }
-
-            let _ = app.emit("tray-update", serde_json::json!({
-                "download": dl,
-                "upload": ul,
-                "totalDownloadMb": total_dl,
-                "totalUploadMb": total_ul,
-                "qualityScore": quality_score,
-                "isConnected": is_connected,
-                "qualityLabelKey": quality_label_key,
-            }));
+            update_trays(&app, &stats, &state.colors.lock());
+            let _ = app.emit("stats-update", &stats);
         }
     });
 }
@@ -455,10 +400,7 @@ fn spawn_ping_loop(app: AppHandle, state: Arc<AppState>) {
             {
                 let monitor = state.ping.clone();
                 let ping_monitor = monitor.lock();
-                let was_connected = {
-                    let stats = ping_monitor.compute_stats();
-                    stats.avg_latency > 0.0 || stats.packet_loss < 100.0
-                };
+                let was_connected = ping_monitor.compute_stats().latency_ms.is_some();
                 ping_monitor.record_ping(ping_result);
                 let is_now_connected = ping_result.is_some();
                 connected_changed = was_connected != is_now_connected;
@@ -467,7 +409,10 @@ fn spawn_ping_loop(app: AppHandle, state: Arc<AppState>) {
             let _ = app.emit("ping-update", ());
 
             if connected_changed {
-                if let Some(notif) = state.notifier.lock().check_connection(ping_result.is_some(), lang)
+                if let Some(notif) = state
+                    .notifier
+                    .lock()
+                    .check_connection(ping_result.is_some(), lang)
                 {
                     send_notification(&app, &notif);
                 }
@@ -481,25 +426,15 @@ fn spawn_quality_loop(app: AppHandle, state: Arc<AppState>) {
         loop {
             tokio::time::sleep(Duration::from_secs(10)).await;
 
-            let lang = state.i18n.get();
-            let ping_monitor = state.ping.lock();
-            let ping_result = ping_monitor.compute_stats();
-            drop(ping_monitor);
-
-            let wifi = WifiMonitor::get_wifi_info();
-            let quality = ConnectionStats::calculate_quality(
-                ping_result.avg_latency,
-                ping_result.jitter_ms,
-                ping_result.packet_loss,
-                wifi.signal_dbm,
-            );
-
-            if let Some(notif) = state
-                .notifier
-                .lock()
-                .check_quality(quality.1, &quality.2, lang)
-            {
-                send_notification(&app, &notif);
+            let stats = state.latest_stats.lock().clone();
+            if stats.connection_status == ConnectionStatus::Online {
+                if let Some(notif) = state.notifier.lock().check_quality(
+                    stats.quality_score_i32,
+                    &stats.quality_label_key,
+                    state.i18n.get(),
+                ) {
+                    send_notification(&app, &notif);
+                }
             }
         }
     });
@@ -515,6 +450,22 @@ fn send_notification(app: &AppHandle, notif: &Notification) {
         .show();
 }
 
+fn spawn_update_check(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(15)).await;
+        let Ok(updater) = app.updater() else {
+            return;
+        };
+        let Ok(Some(update)) = updater.check().await else {
+            return;
+        };
+        let _ = app.emit("update-available", update.version.to_string());
+        if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
+            app.restart();
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let lang = load_language();
@@ -522,6 +473,8 @@ pub fn run() {
     let colors = Arc::new(Mutex::new(load_colors()));
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .setup({
             let i18n = i18n.clone();
@@ -532,6 +485,25 @@ pub fn run() {
                 let bandwidth = Arc::new(Mutex::new(BandwidthMonitor::new()));
                 let ping = Arc::new(Mutex::new(PingMonitor::new()));
                 let notifier = Arc::new(Mutex::new(Notifier::new()));
+                let mut initial_stats = ConnectionStats::default();
+                initial_stats.language = i18n.get().code().to_string();
+                let latest_stats = Arc::new(Mutex::new(initial_stats));
+                let smoothed_quality = Arc::new(Mutex::new(None));
+                let history_recorder = Arc::new(Mutex::new(HistoryRecorder::new()));
+                let guardian = Arc::new(Mutex::new(GuardianEngine::new()));
+                let history_file = history_path().unwrap_or_else(|| {
+                    std::env::temp_dir()
+                        .join(CONFIG_DIR_NAME)
+                        .join("history.json")
+                });
+                let history_store = Arc::new(Mutex::new(
+                    HistoryStore::load(history_file.clone(), Local::now().timestamp())
+                        .unwrap_or_else(|error| {
+                            eprintln!("failed to load connection history: {error}");
+                            HistoryStore::new(history_file)
+                        }),
+                ));
+                let start_time = Instant::now();
 
                 app.manage(AppState {
                     bandwidth: bandwidth.clone(),
@@ -539,22 +511,32 @@ pub fn run() {
                     notifier: notifier.clone(),
                     i18n: i18n.clone(),
                     colors: colors.clone(),
-                    start_time: Instant::now(),
+                    latest_stats: latest_stats.clone(),
+                    smoothed_quality: smoothed_quality.clone(),
+                    history_recorder: history_recorder.clone(),
+                    guardian: guardian.clone(),
+                    history_store: history_store.clone(),
+                    start_time,
                 });
 
-                let start_time = app.state::<AppState>().start_time;
                 let state_arc = Arc::new(AppState {
                     bandwidth,
                     ping,
                     notifier,
                     i18n,
                     colors,
+                    latest_stats,
+                    smoothed_quality,
+                    history_recorder,
+                    guardian,
+                    history_store,
                     start_time,
                 });
 
                 spawn_monitor_loop(handle.clone(), state_arc.clone());
                 spawn_ping_loop(handle.clone(), state_arc.clone());
                 spawn_quality_loop(handle.clone(), state_arc);
+                spawn_update_check(handle.clone());
 
                 build_tray(app)?;
 
@@ -576,6 +558,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_bandwidth,
+            get_history,
+            get_replay,
             toggle_floating_window,
             show_main_window,
             hide_main_window,
@@ -593,42 +577,92 @@ pub fn run() {
 }
 
 fn build_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let icon = generate_tray_icon(0.0, 0.0, 50, &ColorPrefs::default());
+    let prefs = ColorPrefs::default();
+    let indicators = [
+        (tray::DOWNLOAD_ID, IndicatorKind::Download, "0K"),
+        (tray::UPLOAD_ID, IndicatorKind::Upload, "0K"),
+        (tray::QUALITY_ID, IndicatorKind::Quality(0), "…"),
+        (tray::DATA_ID, IndicatorKind::Data, "0 MB"),
+    ];
 
-    let mut tray_builder = tauri::tray::TrayIconBuilder::with_id("main-tray")
-        .tooltip("Connection Monitor")
-        .icon(icon);
+    for (id, kind, title) in indicators {
+        let mut builder = tauri::tray::TrayIconBuilder::with_id(id)
+            .tooltip("Connection Monitor")
+            .title(title)
+            .icon(indicator_icon(kind, &prefs));
 
-    #[cfg(target_os = "macos")]
-    {
-        tray_builder = tray_builder.icon_as_template(true);
-    }
+        #[cfg(target_os = "macos")]
+        {
+            builder = builder.icon_as_template(false);
+        }
 
-    #[cfg(target_os = "macos")]
-    let _tray = tray_builder
-        .on_tray_icon_event(|tray, event| {
-            if let tauri::tray::TrayIconEvent::Click { .. } = event {
-                let app = tray.app_handle();
-                let should_show = app
-                    .get_webview_window("main")
-                    .map(|w| w.is_visible().map(|v| !v).unwrap_or(true))
-                    .unwrap_or(true);
-
-                if let Some(win) = app.get_webview_window("main") {
-                    if should_show {
-                        let _ = win.show();
-                        let _ = win.set_focus();
-                        position_window_near_tray(&win);
-                    } else {
-                        let _ = win.hide();
+        builder
+            .on_tray_icon_event(|tray, event| {
+                if let tauri::tray::TrayIconEvent::Click {
+                    button: tauri::tray::MouseButton::Left,
+                    button_state: tauri::tray::MouseButtonState::Up,
+                    ..
+                } = event
+                {
+                    let app = tray.app_handle();
+                    if let Some(win) = app.get_webview_window("main") {
+                        let is_visible = win.is_visible().unwrap_or(false);
+                        if is_visible {
+                            let _ = win.hide();
+                        } else {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                            position_window_near_tray(&win);
+                        }
                     }
                 }
-            }
-        })
-        .build(app)?;
-
-    #[cfg(not(target_os = "macos"))]
-    let _tray = tray_builder.build(app)?;
+            })
+            .build(app)?;
+    }
 
     Ok(())
+}
+
+fn update_trays(app: &AppHandle, stats: &ConnectionStats, prefs: &ColorPrefs) {
+    let values = [
+        (
+            tray::DOWNLOAD_ID,
+            IndicatorKind::Download,
+            format_rate_compact(stats.download_mbps),
+            format!("Download: {:.2} Mbps", stats.download_mbps),
+        ),
+        (
+            tray::UPLOAD_ID,
+            IndicatorKind::Upload,
+            format_rate_compact(stats.upload_mbps),
+            format!("Upload: {:.2} Mbps", stats.upload_mbps),
+        ),
+        (
+            tray::QUALITY_ID,
+            IndicatorKind::Quality(stats.quality_score),
+            if stats.connection_status == ConnectionStatus::Online {
+                stats.quality_score.to_string()
+            } else {
+                "—".to_string()
+            },
+            translate(
+                Language::from_code(&stats.language),
+                &stats.quality_label_key,
+            ),
+        ),
+        (
+            tray::DATA_ID,
+            IndicatorKind::Data,
+            format_data_compact(stats.total_download_mb + stats.total_upload_mb),
+            "Dati trasferiti in questa sessione".to_string(),
+        ),
+    ];
+
+    for (id, kind, title, tooltip) in values {
+        if let Some(item) = app.tray_by_id(id) {
+            let _ = item.set_icon(Some(indicator_icon(kind, prefs)));
+            let _ = item.set_title(Some(title));
+            let _ = item.set_tooltip(Some(tooltip));
+        }
+    }
 }

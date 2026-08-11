@@ -37,6 +37,10 @@ impl PingMonitor {
         history.push_back(latency_ms);
     }
 
+    pub fn has_samples(&self) -> bool {
+        !self.history.lock().is_empty()
+    }
+
     pub fn compute_stats(&self) -> PingResult {
         let history = self.history.lock();
         let successful: Vec<f64> = history.iter().filter_map(|x| *x).collect();
@@ -71,7 +75,7 @@ impl PingMonitor {
         };
 
         PingResult {
-            latency_ms: successful.last().copied(),
+            latency_ms: history.back().copied().flatten(),
             jitter_ms: jitter,
             packet_loss,
             avg_latency: avg,
@@ -88,6 +92,42 @@ impl PingMonitor {
 }
 
 pub async fn do_ping(target: &str) -> Option<f64> {
+    if let Some(latency) = do_icmp_ping(target).await {
+        return Some(latency);
+    }
+    do_tcp_ping(target).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PingMonitor;
+
+    #[test]
+    fn empty_monitor_has_no_completed_probe() {
+        assert!(!PingMonitor::new().has_samples());
+    }
+
+    #[test]
+    fn failed_latest_probe_clears_current_latency() {
+        let monitor = PingMonitor::new();
+        monitor.record_ping(Some(12.0));
+        monitor.record_ping(None);
+
+        assert_eq!(monitor.compute_stats().latency_ms, None);
+    }
+
+    #[test]
+    fn successful_latest_probe_reports_current_latency() {
+        let monitor = PingMonitor::new();
+        monitor.record_ping(None);
+        monitor.record_ping(Some(18.0));
+
+        assert!(monitor.has_samples());
+        assert_eq!(monitor.compute_stats().latency_ms, Some(18.0));
+    }
+}
+
+async fn do_icmp_ping(target: &str) -> Option<f64> {
     let parsed_target: IpAddr = match target.parse() {
         Ok(ip) => ip,
         Err(_) => match dns_lookup::lookup_host(target) {
@@ -100,9 +140,26 @@ pub async fn do_ping(target: &str) -> Option<f64> {
     let client = Client::new(&config).ok()?;
     let payload = &[0u8; 56];
     let mut pinger = client.pinger(parsed_target, PingIdentifier(111)).await;
-    pinger.timeout(Duration::from_secs(3));
+    pinger.timeout(Duration::from_secs(2));
     match pinger.ping(PingSequence(0), payload).await {
         Ok((_, duration)) => Some(duration.as_secs_f64() * 1000.0),
         Err(_) => None,
+    }
+}
+
+async fn do_tcp_ping(target: &str) -> Option<f64> {
+    use tokio::time::timeout;
+    let start = std::time::Instant::now();
+    let connect = tokio::net::TcpStream::connect((target, 443));
+    match timeout(Duration::from_secs(3), connect).await {
+        Ok(Ok(_stream)) => Some(start.elapsed().as_secs_f64() * 1000.0),
+        _ => {
+            let start = std::time::Instant::now();
+            let connect = tokio::net::TcpStream::connect((target, 80));
+            match timeout(Duration::from_secs(3), connect).await {
+                Ok(Ok(_stream)) => Some(start.elapsed().as_secs_f64() * 1000.0),
+                _ => None,
+            }
+        }
     }
 }

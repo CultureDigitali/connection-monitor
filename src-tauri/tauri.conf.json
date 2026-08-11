@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Connection Monitor",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "identifier": "com.culturedigitali.connection-monitor",
   "build": {
-    "frontendDist": "../src",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "vite",
-    "beforeBuildCommand": ""
+    "beforeBuildCommand": "npm run build"
   },
   "app": {
     "withGlobalTauri": true,
@@ -33,13 +33,14 @@
       {
         "label": "floating",
         "title": "",
-        "width": 130,
-        "height": 56,
+        "url": "floating.html",
+        "width": 336,
+        "height": 78,
         "resizable": false,
         "fullscreen": false,
         "decorations": false,
         "transparent": true,
-        "shadow": false,
+        "shadow": true,
         "alwaysOnTop": true,
         "visible": false,
         "skipTaskbar": true,
@@ -53,7 +54,8 @@
   },
   "bundle": {
     "active": true,
-    "targets": "dmg",
+    "createUpdaterArtifacts": true,
+    "targets": ["app", "dmg"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -69,7 +71,15 @@
       "exceptionDomain": "",
       "frameworks": [],
       "providerShortName": null,
-      "signingIdentity": null
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJFQjc2NEEzMTQ0OTM4MTQKUldRVU9Fa1VvMlMzdnVmSlB3NXYvMlB3S3FoS3FtT1ZrVUlVRVJqOWZNVWEzdUoyNzE0M09uRmYK",
+      "endpoints": [
+        "https://github.com/CultureDigitali/connection-monitor/releases/latest/download/latest.json"
+      ]
     }
   }
 }

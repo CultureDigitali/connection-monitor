@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connection Monitor Widget</title>
+    <link rel="stylesheet" href="floating.css" />
+</head>
+<body>
+    <main class="floating-shell" data-tauri-drag-region aria-label="Connection Monitor">
+        <div class="floating-grid" id="floating-grid" data-tauri-drag-region>
+            <section class="floating-metric download" data-metric="download" data-tooltip-key="tooltipWidgetDownload" tabindex="0">
+                <span class="metric-symbol" aria-hidden="true">↓</span>
+                <span class="metric-number">0</span>
+                <span class="metric-unit">Kbps</span>
+                <span class="metric-name">Down</span>
+            </section>
+            <section class="floating-metric upload" data-metric="upload" data-tooltip-key="tooltipWidgetUpload" tabindex="0">
+                <span class="metric-symbol" aria-hidden="true">↑</span>
+                <span class="metric-number">0</span>
+                <span class="metric-unit">Kbps</span>
+                <span class="metric-name">Up</span>
+            </section>
+            <section class="floating-metric quality connecting" data-metric="quality" data-tooltip-key="tooltipWidgetQuality" tabindex="0">
+                <span class="quality-dot" aria-hidden="true"></span>
+                <span class="metric-number">…</span>
+                <span class="metric-unit"></span>
+                <span class="metric-name">Quality</span>
+            </section>
+            <section class="floating-metric data" data-metric="data" data-tooltip-key="tooltipWidgetData" tabindex="0">
+                <span class="metric-symbol" aria-hidden="true">◇</span>
+                <span class="metric-number">0 MB</span>
+                <span class="metric-unit"></span>
+                <span class="metric-name">Data</span>
+            </section>
+        </div>
+        <button class="floating-close" id="floating-close" type="button" aria-label="Close">×</button>
+    </main>
+    <script type="module" src="floating.js"></script>
+</body>
+</html>

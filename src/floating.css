@@ -1,0 +1,157 @@
+* { box-sizing: border-box; }
+
+:root {
+    color-scheme: dark;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    --green: #34d399;
+    --blue: #60a5fa;
+    --purple: #a78bfa;
+    --yellow: #fbbf24;
+    --orange: #fb923c;
+    --red: #f87171;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.94);
+    user-select: none;
+}
+
+.floating-shell {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 6px 22px 6px 7px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 16px;
+    background: rgba(24, 24, 29, 0.88);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.38), inset 0 1px rgba(255,255,255,0.07);
+}
+
+.floating-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+    height: 100%;
+}
+
+.floating-metric {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    grid-template-rows: 1fr auto;
+    align-items: end;
+    column-gap: 3px;
+    min-width: 0;
+    padding: 7px 6px 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 11px;
+    background: rgba(255,255,255,0.045);
+    outline: none;
+}
+
+.floating-metric:focus-visible { border-color: currentColor; }
+.floating-metric.download { color: var(--green); }
+.floating-metric.upload { color: var(--blue); }
+.floating-metric.data { color: var(--purple); }
+.floating-metric.quality.excellent { color: var(--green); }
+.floating-metric.quality.good { color: var(--purple); }
+.floating-metric.quality.fair { color: var(--yellow); }
+.floating-metric.quality.poor { color: var(--orange); }
+.floating-metric.quality.critical,
+.floating-metric.quality.offline { color: var(--red); }
+.floating-metric.quality.connecting { color: var(--blue); }
+
+.metric-symbol, .quality-dot {
+    align-self: center;
+    grid-row: 1;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.quality-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 7px currentColor;
+}
+
+.metric-number {
+    grid-row: 1;
+    font-size: 15px;
+    line-height: 1;
+    font-weight: 750;
+    letter-spacing: -0.35px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.metric-unit {
+    grid-row: 1;
+    overflow: hidden;
+    font-size: 7px;
+    color: rgba(255,255,255,0.44);
+    white-space: nowrap;
+}
+
+.metric-name {
+    grid-column: 1 / -1;
+    font-size: 7px;
+    line-height: 1;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.45px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.floating-close {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255,255,255,0.35);
+    font-size: 13px;
+    line-height: 15px;
+    cursor: pointer;
+}
+
+.floating-close:hover, .floating-close:focus-visible {
+    color: white;
+    background: rgba(255,255,255,0.1);
+    outline: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .floating-shell { animation: appear 180ms ease-out; }
+    @keyframes appear { from { opacity: 0; transform: scale(.97); } }
+}
+
+.app-tooltip {
+    position: fixed;
+    z-index: 1000;
+    max-width: 170px;
+    padding: 5px 7px;
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 7px;
+    background: rgba(15,15,18,.97);
+    color: rgba(255,255,255,.9);
+    font-size: 8px;
+    line-height: 1.3;
+    box-shadow: 0 8px 20px rgba(0,0,0,.38);
+    pointer-events: none;
+}
+.app-tooltip.hidden { display: none; }

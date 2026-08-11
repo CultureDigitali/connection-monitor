@@ -1,4 +1,13 @@
-const { i18n } = window;
+import { bindWindowVisibility } from './window-visibility.js';
+import { formatData, formatRate } from './formatters.js';
+import { i18n } from './i18n.js';
+import { buildDiagnosticModel } from './diagnostics.js';
+import { applyOfficialLogo } from './branding.js';
+import { buildHistoryView, findIncidentAt, selectReplayPoint } from './history-model.js';
+import { HistoryChart } from './history-chart.js';
+import { bindTooltips } from './tooltips.js';
+import { bindGuide, GuideState } from './guide.js';
+import officialLogoUrl from '../src-tauri/icons/128x128.png';
 
 function applyTranslations() {
     document.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -20,11 +29,22 @@ i18n.onChange(() => {
 class ConnectionMonitor {
     constructor() {
         this.chart = new BandwidthChart('bandwidth-chart');
+        this.historyChart = new HistoryChart(document.getElementById('history-chart'));
         this.stats = null;
+        this.historyResponse = null;
+        this.historyModel = null;
+        this.historyRange = '24h';
+        this.historyMode = 'quality';
+        this.historyCursor = null;
         this.speedTestRunning = false;
+        this.diagnosticsExpanded = false;
         this.unsubs = [];
+        this.tooltipCleanup = bindTooltips(document, (key) => i18n.t(key));
+        this.guide = bindGuide(document, new GuideState(localStorage, '0.3'), (key) => i18n.t(key));
+        i18n.onChange(() => this.guide.render());
 
         this.setupTabs();
+        this.setupHistoryControls();
         this.setupEventListeners();
         this.initLanguage();
         this.fetchStats();
@@ -42,10 +62,11 @@ class ConnectionMonitor {
                 });
                 const target = document.getElementById(`tab-${tabName}`);
                 if (target) target.classList.remove('hidden');
+                if (tabName === 'statistics') this.loadHistory();
             });
         });
 
-        document.querySelectorAll('.credits-link').forEach((link) => {
+        document.querySelectorAll('.external-link').forEach((link) => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const url = link.dataset.url;
@@ -57,7 +78,7 @@ class ConnectionMonitor {
 
         if (window.__TAURI_INTERNALS__) {
             window.__TAURI__.core.invoke('get_app_version').then((v) => {
-                const el = document.getElementById('credits-version');
+                const el = document.getElementById('info-version');
                 if (el) el.textContent = `v${v}`;
             }).catch(() => {});
         }
@@ -77,17 +98,29 @@ class ConnectionMonitor {
         }
         i18n.setLanguage(lang);
         applyTranslations();
+        this.guide.render();
+        this.guide.open();
     }
 
     async setupEventListeners() {
         const closeBtn = document.getElementById('close-btn');
-        closeBtn.addEventListener('click', () => this.invoke('hide_main_window'));
+        bindWindowVisibility(closeBtn, () => this.invoke('hide_main_window'));
 
         const floatingBtn = document.getElementById('toggle-floating');
         floatingBtn.addEventListener('click', () => this.invoke('toggle_floating_window'));
 
         const speedTestBtn = document.getElementById('speed-test-btn');
         speedTestBtn.addEventListener('click', () => this.runSpeedTest());
+
+        const diagnosticsToggle = document.getElementById('diagnostic-toggle');
+        diagnosticsToggle.addEventListener('click', () => {
+            this.diagnosticsExpanded = !this.diagnosticsExpanded;
+            diagnosticsToggle.setAttribute('aria-expanded', String(this.diagnosticsExpanded));
+            document.getElementById('diagnostic-toggle-label').textContent = i18n.t(
+                this.diagnosticsExpanded ? 'diagnosticCollapse' : 'diagnosticDetails',
+            );
+            if (this.stats) this.renderDiagnostics(this.stats);
+        });
 
         const langBtn = document.getElementById('lang-btn');
         const langDropdown = document.getElementById('lang-dropdown');
@@ -116,17 +149,16 @@ class ConnectionMonitor {
 
         document.addEventListener('click', (e) => {
             langDropdown.classList.remove('visible');
-            const container = document.getElementById('container');
-            if (container && !container.contains(e.target)) {
-                this.invoke('hide_main_window');
-            }
         });
 
         if (window.__TAURI_INTERNALS__) {
             try {
                 const { listen } = window.__TAURI__.event;
-                const unsub1 = await listen('stats-update', () => this.fetchStats());
-                const unsub2 = await listen('ping-update', () => this.fetchStats());
+                const unsub1 = await listen('stats-update', (event) => {
+                    this.stats = event.payload;
+                    this.updateUI(event.payload);
+                });
+                const unsub2 = await listen('ping-update', () => {});
                 const unsub3 = await listen('speed-test-start', () => {
                     document.getElementById('speed-test-panel').classList.add('visible');
                     document.getElementById('speed-test-info').textContent = i18n.t('speedTestTesting');
@@ -139,12 +171,154 @@ class ConnectionMonitor {
                 const unsub5 = await listen('language-changed', (event) => {
                     i18n.setLanguage(event.payload);
                     applyTranslations();
+                    if (this.historyResponse) this.renderHistory();
                 });
-                this.unsubs.push(unsub1, unsub2, unsub3, unsub4, unsub5);
+                const unsub6 = await listen('history-updated', () => {
+                    if (document.querySelector('[data-tab="statistics"]').classList.contains('active')) {
+                        this.loadHistory();
+                    }
+                });
+                this.unsubs.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6);
             } catch (e) {
                 console.error('Failed to setup event listeners:', e);
             }
         }
+    }
+
+    setupHistoryControls() {
+        document.querySelectorAll('[data-history-range]').forEach((button) => {
+            button.addEventListener('click', () => {
+                this.historyRange = button.dataset.historyRange;
+                document.querySelectorAll('[data-history-range]').forEach((candidate) => {
+                    candidate.classList.toggle('active', candidate === button);
+                });
+                this.loadHistory();
+            });
+        });
+        document.querySelectorAll('[data-history-mode]').forEach((button) => {
+            button.addEventListener('click', () => {
+                this.historyMode = button.dataset.historyMode;
+                document.querySelectorAll('[data-history-mode]').forEach((candidate) => {
+                    candidate.classList.toggle('active', candidate === button);
+                });
+                if (this.historyModel) {
+                    this.historyChart.render(this.historyModel, this.historyMode, this.historyCursor);
+                }
+            });
+        });
+        document.getElementById('history-replay').addEventListener('input', (event) => {
+            this.renderReplay(Number(event.target.value));
+        });
+        window.addEventListener('beforeunload', () => {
+            for (const unsubscribe of this.unsubs) unsubscribe();
+            this.tooltipCleanup();
+        });
+    }
+
+    async loadHistory() {
+        const container = document.querySelector('.history-container');
+        container.classList.add('loading');
+        try {
+            const response = await this.invoke('get_history', { range: this.historyRange });
+            if (!response) throw new Error('history unavailable');
+            this.historyResponse = response;
+            this.renderHistory();
+        } catch (error) {
+            document.getElementById('history-empty').textContent = i18n.t('historyUnavailable');
+            document.getElementById('history-empty').classList.remove('hidden');
+        } finally {
+            container.classList.remove('loading');
+        }
+    }
+
+    renderHistory() {
+        this.historyModel = buildHistoryView(this.historyResponse, (key) => i18n.t(key));
+        const { summary, points, incidents, streak } = this.historyModel;
+        document.getElementById('history-quality').textContent = summary.quality;
+        document.getElementById('history-availability').textContent = summary.availability;
+        document.getElementById('history-incidents').textContent = summary.incidents;
+        document.getElementById('history-data').textContent = summary.data;
+
+        const empty = document.getElementById('history-empty');
+        empty.textContent = i18n.t('historyEmpty');
+        empty.classList.toggle('hidden', !this.historyModel.empty);
+        const replay = document.getElementById('history-replay');
+        replay.disabled = points.length === 0;
+        if (points.length) {
+            replay.min = String(points[0].timestamp);
+            replay.max = String(points.at(-1).timestamp);
+            replay.step = '60';
+            replay.value = replay.max;
+            this.renderReplay(Number(replay.value));
+        } else {
+            this.historyCursor = null;
+            this.renderReplay(null);
+        }
+        this.historyChart.render(this.historyModel, this.historyMode, this.historyCursor);
+
+        const list = document.getElementById('guardian-list');
+        if (!incidents.length) {
+            const message = document.createElement('p');
+            message.className = 'history-muted';
+            message.textContent = i18n.t('guardianNoIncidents');
+            list.replaceChildren(message);
+            document.getElementById('guardian-detail').classList.add('hidden');
+        } else {
+            list.replaceChildren(...incidents.slice().reverse().map((incident) => {
+                const button = document.createElement('button');
+                button.className = `guardian-event ${incident.kind}`;
+                button.type = 'button';
+                const time = new Date(incident.started_at * 1000).toLocaleTimeString(i18n.getLanguage(), {
+                    hour: '2-digit', minute: '2-digit',
+                });
+                button.innerHTML = `<span><strong>${incident.title}</strong><small>${time} · ${incident.cause}</small></span><b>›</b>`;
+                button.addEventListener('click', () => {
+                    document.getElementById('history-replay').value = String(incident.started_at);
+                    this.renderReplay(incident.started_at);
+                    this.showIncident(incident);
+                });
+                return button;
+            }));
+        }
+
+        document.getElementById('streak-current').textContent = String(streak.current);
+        document.getElementById('streak-best').textContent = String(streak.best);
+        document.getElementById('streak-progress').style.width = `${streak.progress * 100}%`;
+    }
+
+    renderReplay(timestamp) {
+        const buckets = this.historyResponse?.buckets || [];
+        const point = selectReplayPoint(buckets, timestamp);
+        this.historyCursor = point?.started_at ?? null;
+        const time = point
+            ? new Date(point.started_at * 1000).toLocaleTimeString(i18n.getLanguage(), { hour: '2-digit', minute: '2-digit' })
+            : '—';
+        document.getElementById('replay-time').textContent = time;
+        document.getElementById('replay-quality').textContent = Number.isFinite(point?.average_quality)
+            ? `${Math.round(point.average_quality)}/100` : '—';
+        if (point && Number.isFinite(point.average_download_mbps)) {
+            const down = formatRate(point.average_download_mbps);
+            const up = formatRate(point.average_upload_mbps);
+            document.getElementById('replay-speed').textContent = `↓${down.value} ↑${up.value}`;
+        } else {
+            document.getElementById('replay-speed').textContent = '—';
+        }
+        document.getElementById('replay-ping').textContent = Number.isFinite(point?.average_ping_ms)
+            ? `${Math.round(point.average_ping_ms)} ms` : '—';
+        if (this.historyModel) {
+            this.historyChart.render(this.historyModel, this.historyMode, this.historyCursor);
+            const incident = findIncidentAt(this.historyModel.incidents, this.historyCursor);
+            if (incident) this.showIncident(incident);
+        }
+    }
+
+    showIncident(incident) {
+        const detail = document.getElementById('guardian-detail');
+        detail.classList.remove('hidden');
+        document.getElementById('guardian-detail-title').textContent = incident.title;
+        document.getElementById('guardian-detail-cause').textContent = incident.measurement
+            ? `${incident.cause} · ${incident.measurement}` : incident.cause;
+        document.getElementById('guardian-detail-action').textContent = incident.recommendation;
     }
 
     async invoke(command, ...args) {
@@ -208,14 +382,12 @@ class ConnectionMonitor {
     }
 
     updateUI(stats) {
-        const formatSpeed = (mbps) => {
-            if (mbps >= 1000) return (mbps / 1000).toFixed(2) + 'k';
-            if (mbps >= 100) return mbps.toFixed(0);
-            return mbps.toFixed(1);
-        };
-
-        document.getElementById('download-speed').textContent = formatSpeed(stats.download_mbps);
-        document.getElementById('upload-speed').textContent = formatSpeed(stats.upload_mbps);
+        const download = formatRate(stats.download_mbps);
+        const upload = formatRate(stats.upload_mbps);
+        document.getElementById('download-speed').textContent = download.value;
+        document.getElementById('download-unit').textContent = download.unit;
+        document.getElementById('upload-speed').textContent = upload.value;
+        document.getElementById('upload-unit').textContent = upload.unit;
 
         const pingEl = document.getElementById('ping-value');
         pingEl.textContent = stats.ping_ms > 0 ? `${stats.ping_ms.toFixed(0)} ms` : '-- ms';
@@ -245,14 +417,15 @@ class ConnectionMonitor {
         const dot = document.getElementById('status-dot');
         const qualityText = document.getElementById('quality-text');
         const scoreText = document.getElementById('status-score');
-        const scoreElement = document.getElementById('quality-score');
 
-        if (!stats.is_connected) {
+        if (stats.connection_status === 'connecting') {
+            dot.className = 'status-dot connecting';
+            qualityText.textContent = i18n.t('statusConnecting');
+            scoreText.textContent = '…';
+        } else if (stats.connection_status === 'offline') {
             dot.className = 'status-dot disconnected';
             qualityText.textContent = i18n.t('statusDisconnected');
             scoreText.textContent = 'OFFLINE';
-            scoreElement.textContent = '--/100';
-            document.querySelectorAll('.star').forEach((s) => s.classList.remove('active'));
         } else {
             let labelKey;
             switch (stats.quality_label_key) {
@@ -263,25 +436,13 @@ class ConnectionMonitor {
                 case 'quality_critical': labelKey = 'qualityCritical'; break;
                 default: labelKey = 'qualityGood';
             }
-            const label = i18n.t(labelKey).toLowerCase();
-            dot.className = `status-dot ${label}`;
+            const qualityClass = stats.quality_label_key.replace('quality_', '');
+            dot.className = `status-dot ${qualityClass}`;
             qualityText.textContent = i18n.t(labelKey);
             scoreText.textContent = `${stats.quality_score}/100`;
-            scoreElement.textContent = `${stats.quality_score}/100`;
-
-            const stars = document.querySelectorAll('.star');
-            const activeCount = Math.ceil(stats.quality_score / 20);
-            stars.forEach((star, i) => {
-                const wasActive = star.classList.contains('active');
-                const willBeActive = i < activeCount;
-                star.classList.toggle('active', willBeActive);
-                if (willBeActive && !wasActive) {
-                    star.style.animation = 'none';
-                    star.offsetHeight;
-                    star.style.animation = '';
-                }
-            });
         }
+
+        this.renderDiagnostics(stats);
 
         const hours = Math.floor(stats.uptime_seconds / 3600);
         const minutes = Math.floor((stats.uptime_seconds % 3600) / 60);
@@ -296,10 +457,38 @@ class ConnectionMonitor {
             uptimeStr = `${i18n.t('uptime')}: ${seconds}${s}`;
         }
         document.getElementById('uptime').textContent = uptimeStr;
+        const transferred = stats.total_download_mb + stats.total_upload_mb;
+        document.getElementById('total-data').textContent = `${i18n.t('totalData')}: ${formatData(transferred)}`;
 
         if (stats.bandwidth_history && stats.bandwidth_history.length > 0) {
             this.chart.update(stats.bandwidth_history);
         }
+    }
+
+    renderDiagnostics(stats) {
+        const model = buildDiagnosticModel(stats, (key) => i18n.t(key));
+        const summary = document.getElementById('diagnostic-summary');
+        summary.replaceChildren(...model.summary.map((reason) => {
+            const item = document.createElement('span');
+            item.textContent = reason;
+            return item;
+        }));
+        document.getElementById('diagnostic-recommendation').textContent = model.recommendation;
+
+        const details = document.getElementById('diagnostic-details');
+        details.replaceChildren(...model.rows.map((row) => {
+            const item = document.createElement('div');
+            item.className = `diagnostic-row ${row.severity}`;
+            const metric = document.createElement('span');
+            metric.textContent = `${row.label} · ${row.measured}`;
+            const penalty = document.createElement('strong');
+            penalty.textContent = `${row.penalty} pt`;
+            item.append(metric, penalty);
+            return item;
+        }));
+        details.classList.toggle('hidden', !this.diagnosticsExpanded || model.rows.length === 0);
+        document.getElementById('diagnostic-toggle').classList.toggle('hidden', model.rows.length === 0);
+        document.getElementById('diagnostic-card').dataset.state = model.state;
     }
 }
 
@@ -452,5 +641,6 @@ class BandwidthChart {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    applyOfficialLogo(document.querySelectorAll('[data-app-logo]'), officialLogoUrl, 'Connection Monitor');
     new ConnectionMonitor();
 });

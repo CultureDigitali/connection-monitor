@@ -11,15 +11,13 @@
         <header>
             <div class="header-left">
                 <div class="app-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
-                    </svg>
+                    <img data-app-logo alt="Connection Monitor" />
                 </div>
                 <h1 data-i18n="appTitle">Connection Monitor</h1>
             </div>
             <div class="header-right">
                 <div class="lang-selector">
-                    <button class="lang-btn" id="lang-btn" title="Language">
+                    <button class="lang-btn" id="lang-btn" title="Language" data-tooltip-key="tooltipLanguage">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/>
                             <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
@@ -33,7 +31,7 @@
                         <button class="lang-option" data-lang="fr">Francais</button>
                     </div>
                 </div>
-                <button class="close-btn" id="close-btn" title="Close">
+                <button class="close-btn" id="close-btn" title="Close" data-tooltip-key="tooltipClose">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 6L6 18M6 6l12 12"/>
                     </svg>
@@ -43,12 +41,13 @@
 
         <nav class="tabs">
             <button class="tab active" data-tab="monitor" data-i18n="tabMonitor">Monitor</button>
-            <button class="tab" data-tab="credits" data-i18n="tabCredits">Credits</button>
+            <button class="tab" data-tab="statistics" data-i18n="tabStatistics">Statistics</button>
+            <button class="tab" data-tab="info" data-i18n="tabInfo">Info</button>
         </nav>
 
         <div class="tab-content" id="tab-monitor">
 
-        <div class="status-bar" id="status-bar">
+        <div class="status-bar" id="status-bar" tabindex="0" data-tooltip-key="tooltipQuality">
             <span class="status-dot" id="status-dot"></span>
             <span class="status-text" id="quality-text">Connecting...</span>
             <span class="status-score" id="status-score">--/100</span>
@@ -62,7 +61,7 @@
                     </svg>
                 </div>
                 <div class="speed-value" id="download-speed">0.0</div>
-                <div class="speed-unit" data-i18n="speedDown" data-i18n-prefix="MB/s ">down</div>
+                <div class="speed-unit"><span id="download-unit">Kbps</span> <span data-i18n="speedDown">down</span></div>
             </div>
             <div class="speed-card upload">
                 <div class="speed-icon">
@@ -71,7 +70,7 @@
                     </svg>
                 </div>
                 <div class="speed-value" id="upload-speed">0.0</div>
-                <div class="speed-unit" data-i18n="speedUp" data-i18n-prefix="MB/s ">up</div>
+                <div class="speed-unit"><span id="upload-unit">Kbps</span> <span data-i18n="speedUp">up</span></div>
             </div>
         </div>
 
@@ -105,26 +104,31 @@
             </div>
         </div>
 
-        <div class="quality-bar">
-            <div class="quality-stars" id="quality-stars">
-                <span class="star">&#9733;</span>
-                <span class="star">&#9733;</span>
-                <span class="star">&#9733;</span>
-                <span class="star">&#9733;</span>
-                <span class="star">&#9733;</span>
+        <div class="diagnostic-card" id="diagnostic-card">
+            <div class="diagnostic-section">
+                <span class="diagnostic-label" data-i18n="diagnosticWhy">Why</span>
+                <div class="diagnostic-summary" id="diagnostic-summary">--</div>
             </div>
-            <div class="quality-score" id="quality-score">--/100</div>
+            <div class="diagnostic-section action">
+                <span class="diagnostic-label" data-i18n="diagnosticAction">What to do</span>
+                <p class="diagnostic-recommendation" id="diagnostic-recommendation">--</p>
+            </div>
+            <button class="diagnostic-toggle" id="diagnostic-toggle" type="button" aria-expanded="false">
+                <span id="diagnostic-toggle-label" data-i18n="diagnosticDetails">Details</span>
+                <span class="diagnostic-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="diagnostic-details hidden" id="diagnostic-details"></div>
         </div>
 
         <div class="controls">
-            <button class="btn-action" id="toggle-floating">
+            <button class="btn-action" id="toggle-floating" data-tooltip-key="tooltipWidgetButton">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                     <rect x="7" y="7" width="6" height="6" rx="1"/>
                 </svg>
                 <span data-i18n="btnWidget">Widget</span>
             </button>
-            <button class="btn-action primary" id="speed-test-btn">
+            <button class="btn-action primary" id="speed-test-btn" data-tooltip-key="tooltipSpeedTest">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                 </svg>
@@ -159,61 +163,173 @@
         </footer>
         </div>
 
-        <div class="tab-content hidden" id="tab-credits">
-            <div class="credits-container">
-                <div class="credits-logo">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
-                    </svg>
+        <div class="tab-content hidden" id="tab-statistics">
+            <div class="history-container">
+                <div class="history-range" role="group" aria-label="History range" data-tooltip-key="tooltipHistoryRange" tabindex="0">
+                    <button class="history-range-btn active" data-history-range="24h">24h</button>
+                    <button class="history-range-btn" data-history-range="7d">7d</button>
+                    <button class="history-range-btn" data-history-range="30d">30d</button>
                 </div>
-                <h2 class="credits-title">Connection Monitor</h2>
-                <p class="credits-version" id="credits-version">v0.1.0</p>
 
-                <div class="credits-section">
-                    <h3>Developed by</h3>
-                    <div class="credits-card">
-                        <div class="credits-person">
+                <div class="history-summary-grid">
+                    <div class="history-summary-card quality">
+                        <span data-i18n="historyAverageQuality">Average quality</span>
+                        <strong id="history-quality">—</strong>
+                    </div>
+                    <div class="history-summary-card availability">
+                        <span data-i18n="historyAvailability">Availability</span>
+                        <strong id="history-availability">—</strong>
+                    </div>
+                    <div class="history-summary-card incidents">
+                        <span data-i18n="historyIncidents">Incidents</span>
+                        <strong id="history-incidents">0</strong>
+                    </div>
+                    <div class="history-summary-card data">
+                        <span data-i18n="historyTransferred">Transferred</span>
+                        <strong id="history-data">—</strong>
+                    </div>
+                </div>
+
+                <section class="history-chart-card">
+                    <div class="history-section-header">
+                        <div>
+                            <span class="history-eyebrow">Internet Replay</span>
+                            <strong data-i18n="historyTimeline">Connection timeline</strong>
+                        </div>
+                        <div class="history-modes" role="group" aria-label="Chart metric" data-tooltip-key="tooltipHistoryMode" tabindex="0">
+                            <button class="history-mode active" data-history-mode="quality" data-i18n="historyModeQuality">Quality</button>
+                            <button class="history-mode" data-history-mode="bandwidth" data-i18n="historyModeSpeed">Speed</button>
+                            <button class="history-mode" data-history-mode="ping" data-i18n="metricPing">Ping</button>
+                        </div>
+                    </div>
+                    <div class="history-chart-shell">
+                        <canvas id="history-chart"></canvas>
+                        <div class="history-empty" id="history-empty" data-i18n="historyEmpty">History will appear after the first minute.</div>
+                    </div>
+                    <input id="history-replay" class="history-replay" type="range" min="0" max="0" value="0" aria-label="Internet Replay" data-tooltip-key="tooltipReplay" />
+                    <div class="replay-readout" id="replay-readout">
+                        <span><small data-i18n="historyTime">Time</small><strong id="replay-time">—</strong></span>
+                        <span><small data-i18n="historyModeQuality">Quality</small><strong id="replay-quality">—</strong></span>
+                        <span><small data-i18n="historyModeSpeed">Speed</small><strong id="replay-speed">—</strong></span>
+                        <span><small data-i18n="metricPing">Ping</small><strong id="replay-ping">—</strong></span>
+                    </div>
+                </section>
+
+                <section class="guardian-card" data-tooltip-key="tooltipGuardian" tabindex="0">
+                    <div class="history-section-header">
+                        <div>
+                            <span class="history-eyebrow">Connection Guardian</span>
+                            <strong data-i18n="guardianTitle">Detected events</strong>
+                        </div>
+                    </div>
+                    <div class="guardian-list" id="guardian-list">
+                        <p class="history-muted" data-i18n="guardianNoIncidents">No connection incidents in this period.</p>
+                    </div>
+                    <div class="guardian-detail hidden" id="guardian-detail">
+                        <strong id="guardian-detail-title">—</strong>
+                        <p id="guardian-detail-cause">—</p>
+                        <span data-i18n="diagnosticAction">What to do</span>
+                        <p id="guardian-detail-action">—</p>
+                    </div>
+                </section>
+
+                <section class="streak-card" data-tooltip-key="tooltipStreak" tabindex="0">
+                    <div class="streak-mark" aria-hidden="true">◆</div>
+                    <div class="streak-copy">
+                        <span class="history-eyebrow">Connection Streak</span>
+                        <strong><span id="streak-current">0</span> <span data-i18n="streakReliableDays">reliable days</span></strong>
+                        <div class="streak-track"><span id="streak-progress"></span></div>
+                        <small><span data-i18n="streakBest">Personal best</span>: <span id="streak-best">0</span></small>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <div class="tab-content hidden" id="tab-info">
+            <div class="info-container">
+                <div class="info-hero">
+                    <div class="info-logo-shell">
+                        <img data-app-logo alt="Connection Monitor" />
+                    </div>
+                    <div>
+                        <h2 class="info-title">Connection Monitor</h2>
+                        <span class="info-version" id="info-version">v0.3.0</span>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <span class="info-eyebrow" data-i18n="infoDevelopedBy">Developed by</span>
+                    <div class="info-card-heading">
+                        <div>
                             <strong>Luigi Strazzullo</strong>
-                            <span class="credits-role">Software Developer & Digital Consultant</span>
-                            <a href="#" class="credits-link" data-url="https://linkedin.com/in/luigistrazzullo">LinkedIn</a>
-                            <a href="#" class="credits-link" data-url="https://luigistrazzullo.it">luigistrazzullo.it</a>
+                            <p data-i18n="infoDeveloperRole">Software Developer & Digital Consultant</p>
                         </div>
+                        <span class="info-avatar">LS</span>
+                    </div>
+                    <div class="info-links">
+                        <a href="#" class="info-link external-link" data-url="https://luigistrazzullo.it" data-i18n="infoWebsite">Website</a>
+                        <a href="#" class="info-link external-link" data-url="https://linkedin.com/in/luigistrazzullo">LinkedIn</a>
                     </div>
                 </div>
 
-                <div class="credits-section">
-                    <h3>For</h3>
-                    <div class="credits-card">
-                        <div class="credits-company">
+                <div class="info-card company">
+                    <span class="info-eyebrow" data-i18n="infoFor">For</span>
+                    <div class="info-card-heading">
+                        <div>
                             <strong>Culture Digitali Srl</strong>
-                            <span class="credits-role">Startup Innovativa - Digitalizzazione & Formazione</span>
-                            <p class="credits-desc">Premiata da OVH, Amazon, MiBac e Google for Startups. Specializzata in digitalizzazione, software gestionali, AI e consulenza per la PA.</p>
-                            <div class="credits-links">
-                                <a href="#" class="credits-link" data-url="https://culturedigitali.eu">culturedigitali.eu</a>
-                                <a href="#" class="credits-link" data-url="https://linkedin.com/company/culture-digitali">LinkedIn</a>
-                            </div>
-                            <div class="credits-contact">
-                                <p><strong>Email:</strong> <a href="#" class="credits-link" data-url="mailto:info@culturedigitali.eu">info@culturedigitali.eu</a></p>
-                                <p><strong>Phone:</strong> (+39) 081 180 88 248</p>
-                                <p><strong>Address:</strong> Via Coroglio 57D, 80124 Napoli</p>
-                                <p><strong>P.IVA:</strong> 09465861210</p>
-                            </div>
+                            <p data-i18n="infoCompanyRole">Innovative startup · Digital products and AI</p>
                         </div>
+                        <span class="info-company-mark">CD</span>
+                    </div>
+                    <div class="info-links">
+                        <a href="#" class="info-link external-link" data-url="https://culturedigitali.eu">culturedigitali.eu</a>
+                        <a href="#" class="info-link external-link" data-url="mailto:info@culturedigitali.eu">Email</a>
                     </div>
                 </div>
 
-                <div class="credits-section">
-                    <h3>License</h3>
-                    <div class="credits-card">
-                        <p>MIT License - Open Source Software</p>
-                        <p class="credits-small">Made with love in Naples, Italy</p>
-                    </div>
+                <button class="guide-open-button" id="open-guide" type="button" data-i18n="guideOpen" data-tooltip-key="tooltipGuide">Open guide</button>
+
+                <div class="info-footer">
+                    <span data-i18n="infoLicense">Open source · MIT License</span>
+                    <span data-i18n="infoMadeIn">Designed and developed in Naples, Italy</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="i18n.js"></script>
-    <script src="main.js"></script>
+    <div class="guide-overlay hidden" id="app-guide" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="guide-title">
+        <div class="guide-card">
+            <div class="guide-header">
+                <div class="guide-brand">
+                    <img data-app-logo alt="Connection Monitor" />
+                    <span id="guide-title" data-i18n="guideTitle">Quick guide</span>
+                </div>
+                <button id="guide-skip" class="guide-skip" type="button">Skip</button>
+            </div>
+            <div class="guide-visual" id="guide-visual" data-step="live" aria-hidden="true">
+                <div class="guide-live-visual">
+                    <span class="guide-orb">82</span>
+                    <i>↓ 24.8</i><i>↑ 4.2</i><i>24 ms</i>
+                </div>
+                <div class="guide-widget-visual">
+                    <i>↓ 24.8</i><i>↑ 4.2</i><i>82</i><i>1.2 GB</i>
+                </div>
+                <div class="guide-history-visual"><span></span><b>◆ 7</b></div>
+            </div>
+            <div class="guide-copy">
+                <h2 id="guide-step-title">Understand your connection</h2>
+                <p id="guide-step-body">Live measurements explain what is happening.</p>
+            </div>
+            <div class="guide-dots" aria-hidden="true">
+                <span class="guide-dot active"></span><span class="guide-dot"></span><span class="guide-dot"></span>
+            </div>
+            <div class="guide-actions">
+                <button id="guide-back" type="button">Back</button>
+                <button id="guide-next" class="primary" type="button">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
 </body>
 </html>
