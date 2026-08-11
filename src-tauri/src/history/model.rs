@@ -1,5 +1,6 @@
+use chrono::{Duration, Local, NaiveDate, TimeZone};
 use serde::{Deserialize, Serialize};
-use chrono::{Duration, NaiveDate};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MinuteBucket {
@@ -42,6 +43,7 @@ pub struct DailyReliability {
 }
 
 impl DailyReliability {
+    #[cfg(test)]
     pub fn complete(date: &str, availability: f64, average_quality: f64) -> Self {
         Self {
             date: date.to_string(),
@@ -51,6 +53,7 @@ impl DailyReliability {
         }
     }
 
+    #[cfg(test)]
     pub fn partial(date: &str, availability: f64, average_quality: f64) -> Self {
         Self {
             date: date.to_string(),
@@ -91,7 +94,10 @@ fn weighted_average(
 }
 
 pub fn summarize(buckets: &[MinuteBucket], incident_count: usize) -> HistorySummary {
-    let total_samples: u64 = buckets.iter().map(|bucket| u64::from(bucket.sample_count)).sum();
+    let total_samples: u64 = buckets
+        .iter()
+        .map(|bucket| u64::from(bucket.sample_count))
+        .sum();
     let availability = if total_samples == 0 {
         0.0
     } else {
@@ -104,7 +110,10 @@ pub fn summarize(buckets: &[MinuteBucket], incident_count: usize) -> HistorySumm
 
     HistorySummary {
         average_quality: weighted_average(buckets, |bucket| bucket.average_quality),
-        minimum_quality: buckets.iter().filter_map(|bucket| bucket.minimum_quality).min(),
+        minimum_quality: buckets
+            .iter()
+            .filter_map(|bucket| bucket.minimum_quality)
+            .min(),
         availability,
         average_download_mbps: weighted_average(buckets, |bucket| bucket.average_download_mbps),
         average_upload_mbps: weighted_average(buckets, |bucket| bucket.average_upload_mbps),
@@ -139,7 +148,11 @@ pub fn calculate_streak(days: &[DailyReliability], today: &str) -> StreakSummary
             .map(|previous| *date == previous + Duration::days(1))
             .unwrap_or(false);
         run = if *reliable {
-            if consecutive { run + 1 } else { 1 }
+            if consecutive {
+                run + 1
+            } else {
+                1
+            }
         } else {
             0
         };
@@ -172,6 +185,33 @@ pub fn calculate_streak(days: &[DailyReliability], today: &str) -> StreakSummary
         next_milestone,
         today_reliable_so_far,
     }
+}
+
+pub fn build_daily_reliability(buckets: &[MinuteBucket], today: &str) -> Vec<DailyReliability> {
+    let mut grouped: BTreeMap<String, Vec<MinuteBucket>> = BTreeMap::new();
+    for bucket in buckets {
+        if let Some(timestamp) = Local.timestamp_opt(bucket.started_at, 0).single() {
+            grouped
+                .entry(timestamp.format("%Y-%m-%d").to_string())
+                .or_default()
+                .push(bucket.clone());
+        }
+    }
+
+    grouped
+        .into_iter()
+        .filter_map(|(date, day_buckets)| {
+            let summary = summarize(&day_buckets, 0);
+            let average_quality = summary.average_quality?;
+            let complete = date.as_str() < today && day_buckets.len() >= 1_380;
+            Some(DailyReliability {
+                date,
+                availability: summary.availability,
+                average_quality,
+                is_complete: complete,
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]

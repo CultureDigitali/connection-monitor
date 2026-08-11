@@ -1,3 +1,4 @@
+use chrono::Local;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
@@ -7,12 +8,17 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 
-mod i18n;
 mod history;
+mod i18n;
 mod monitor;
 mod stats;
 mod tray;
 
+use history::guardian::{GuardianEngine, GuardianTransition};
+use history::model::{build_daily_reliability, calculate_streak, summarize};
+use history::recorder::HistoryRecorder;
+use history::store::HistoryStore;
+use history::{day_bounds, range_start, HistoryResponse, ReplayResponse};
 use i18n::{translate, I18n, Language};
 use monitor::bandwidth::BandwidthMonitor;
 use monitor::notify::{Notification, Notifier};
@@ -56,6 +62,10 @@ impl Default for ColorPrefs {
 
 fn config_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join(CONFIG_DIR_NAME))
+}
+
+fn history_path() -> Option<PathBuf> {
+    dirs::data_local_dir().map(|directory| directory.join(CONFIG_DIR_NAME).join("history.json"))
 }
 
 fn load_language() -> Language {
@@ -170,6 +180,41 @@ fn get_bandwidth(state: State<'_, AppState>) -> ConnectionStats {
 }
 
 #[tauri::command]
+fn get_history(range: String, state: State<'_, AppState>) -> Result<HistoryResponse, String> {
+    let now = Local::now().timestamp();
+    let started_at = range_start(&range, now).ok_or_else(|| "invalid history range".to_string())?;
+    let store = state.history_store.lock();
+    let selected = store.query_range(started_at, now);
+    let summary = summarize(&selected.buckets, selected.incidents.len());
+    let today = Local::now().format("%Y-%m-%d").to_string();
+    let days = build_daily_reliability(&store.document().buckets, &today);
+    let streak = calculate_streak(&days, &today);
+    Ok(HistoryResponse {
+        range,
+        started_at,
+        ended_at: now,
+        summary,
+        buckets: selected.buckets,
+        incidents: selected.incidents,
+        streak,
+    })
+}
+
+#[tauri::command]
+fn get_replay(day: String, state: State<'_, AppState>) -> Result<ReplayResponse, String> {
+    let (started_at, ended_at) =
+        day_bounds(&day).ok_or_else(|| "invalid replay day".to_string())?;
+    let selected = state.history_store.lock().query_range(started_at, ended_at);
+    Ok(ReplayResponse {
+        day,
+        started_at,
+        ended_at,
+        buckets: selected.buckets,
+        incidents: selected.incidents,
+    })
+}
+
+#[tauri::command]
 fn toggle_floating_window(app: AppHandle) -> bool {
     if let Some(win) = app.get_webview_window("floating") {
         match win.is_visible() {
@@ -221,6 +266,9 @@ struct AppState {
     colors: Arc<Mutex<ColorPrefs>>,
     latest_stats: Arc<Mutex<ConnectionStats>>,
     smoothed_quality: Arc<Mutex<Option<f64>>>,
+    history_recorder: Arc<Mutex<HistoryRecorder>>,
+    guardian: Arc<Mutex<GuardianEngine>>,
+    history_store: Arc<Mutex<HistoryStore>>,
     start_time: Instant,
 }
 
@@ -318,6 +366,22 @@ fn spawn_monitor_loop(app: AppHandle, state: Arc<AppState>) {
             };
 
             *state.latest_stats.lock() = stats.clone();
+            let now = Local::now().timestamp();
+            let completed_bucket = state.history_recorder.lock().record(now, &stats);
+            let transition = state.guardian.lock().evaluate(now, &stats);
+            let history_changed =
+                completed_bucket.is_some() || !matches!(&transition, GuardianTransition::None);
+            if history_changed {
+                let mut store = state.history_store.lock();
+                if let Some(bucket) = completed_bucket {
+                    store.append_bucket(bucket, now);
+                }
+                store.apply_transition(transition, now);
+                if let Err(error) = store.save_atomic() {
+                    eprintln!("failed to save connection history: {error}");
+                }
+                let _ = app.emit("history-updated", ());
+            }
             update_trays(&app, &stats, &state.colors.lock());
             let _ = app.emit("stats-update", &stats);
         }
@@ -425,6 +489,20 @@ pub fn run() {
                 initial_stats.language = i18n.get().code().to_string();
                 let latest_stats = Arc::new(Mutex::new(initial_stats));
                 let smoothed_quality = Arc::new(Mutex::new(None));
+                let history_recorder = Arc::new(Mutex::new(HistoryRecorder::new()));
+                let guardian = Arc::new(Mutex::new(GuardianEngine::new()));
+                let history_file = history_path().unwrap_or_else(|| {
+                    std::env::temp_dir()
+                        .join(CONFIG_DIR_NAME)
+                        .join("history.json")
+                });
+                let history_store = Arc::new(Mutex::new(
+                    HistoryStore::load(history_file.clone(), Local::now().timestamp())
+                        .unwrap_or_else(|error| {
+                            eprintln!("failed to load connection history: {error}");
+                            HistoryStore::new(history_file)
+                        }),
+                ));
                 let start_time = Instant::now();
 
                 app.manage(AppState {
@@ -435,6 +513,9 @@ pub fn run() {
                     colors: colors.clone(),
                     latest_stats: latest_stats.clone(),
                     smoothed_quality: smoothed_quality.clone(),
+                    history_recorder: history_recorder.clone(),
+                    guardian: guardian.clone(),
+                    history_store: history_store.clone(),
                     start_time,
                 });
 
@@ -446,6 +527,9 @@ pub fn run() {
                     colors,
                     latest_stats,
                     smoothed_quality,
+                    history_recorder,
+                    guardian,
+                    history_store,
                     start_time,
                 });
 
@@ -474,6 +558,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_bandwidth,
+            get_history,
+            get_replay,
             toggle_floating_window,
             show_main_window,
             hide_main_window,

@@ -45,7 +45,10 @@ impl GuardianEngine {
     }
 
     fn strongest_issue(stats: &ConnectionStats) -> Option<&QualityIssue> {
-        stats.quality_issues.iter().max_by_key(|issue| issue.penalty)
+        stats
+            .quality_issues
+            .iter()
+            .max_by_key(|issue| issue.penalty)
     }
 
     fn degraded_incident(&self, timestamp: i64, stats: &ConnectionStats) -> Incident {
@@ -124,8 +127,10 @@ impl GuardianEngine {
             return GuardianTransition::Opened(incident);
         }
 
-        let critical = stats.connection_status == ConnectionStatus::Online && stats.quality_score < 25;
-        let healthy = stats.connection_status == ConnectionStatus::Online && stats.quality_score >= 50;
+        let critical =
+            stats.connection_status == ConnectionStatus::Online && stats.quality_score < 25;
+        let healthy =
+            stats.connection_status == ConnectionStatus::Online && stats.quality_score >= 50;
 
         if critical {
             self.recovery_count = 0;
@@ -213,11 +218,26 @@ mod tests {
     #[test]
     fn degradation_opens_and_closes_only_after_three_consecutive_samples() {
         let mut guardian = GuardianEngine::new();
-        assert!(matches!(guardian.evaluate(1, &critical_stats()), GuardianTransition::None));
-        assert!(matches!(guardian.evaluate(2, &critical_stats()), GuardianTransition::None));
-        assert!(matches!(guardian.evaluate(3, &critical_stats()), GuardianTransition::Opened(_)));
-        assert!(matches!(guardian.evaluate(4, &healthy_stats()), GuardianTransition::None));
-        assert!(matches!(guardian.evaluate(5, &healthy_stats()), GuardianTransition::None));
+        assert!(matches!(
+            guardian.evaluate(1, &critical_stats()),
+            GuardianTransition::None
+        ));
+        assert!(matches!(
+            guardian.evaluate(2, &critical_stats()),
+            GuardianTransition::None
+        ));
+        assert!(matches!(
+            guardian.evaluate(3, &critical_stats()),
+            GuardianTransition::Opened(_)
+        ));
+        assert!(matches!(
+            guardian.evaluate(4, &healthy_stats()),
+            GuardianTransition::None
+        ));
+        assert!(matches!(
+            guardian.evaluate(5, &healthy_stats()),
+            GuardianTransition::None
+        ));
         let GuardianTransition::Closed(closed) = guardian.evaluate(6, &healthy_stats()) else {
             panic!("third healthy sample must close the incident");
         };
@@ -232,7 +252,10 @@ mod tests {
             panic!("offline must open immediately");
         };
         assert_eq!(opened.kind, IncidentKind::Offline);
-        assert!(matches!(guardian.evaluate(11, &offline_stats()), GuardianTransition::None));
+        assert!(matches!(
+            guardian.evaluate(11, &offline_stats()),
+            GuardianTransition::None
+        ));
     }
 
     #[test]
@@ -263,6 +286,9 @@ mod tests {
         };
         assert_eq!(updated.lowest_quality, Some(8));
         assert_eq!(updated.issue_key.as_deref(), Some("packet_loss"));
-        assert_eq!(updated.recommendation_key.as_deref(), Some("recommendation_packet_loss"));
+        assert_eq!(
+            updated.recommendation_key.as_deref(),
+            Some("recommendation_packet_loss")
+        );
     }
 }
