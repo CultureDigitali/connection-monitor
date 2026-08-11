@@ -54,8 +54,8 @@ See your **download** and **upload** speeds live from the menu bar or Windows sy
 ### 🎯 Connection quality score (0–100)
 We compute a single score from latency, jitter, packet loss, and WiFi signal. Know instantly if your connection is **excellent**, **good**, **fair**, **poor**, or **critical**.
 
-### 🎨 Color-coded tray icon
-The icon changes color based on your connection quality:
+### 🎨 Color-coded tray indicators
+Four distinct indicators keep download, upload, quality, and transferred data visible. The quality indicator changes color with your connection:
 - 🟢 **Green** = Excellent (90–100)
 - 🟢 **Light Green** = Good (75–89)
 - 🟡 **Yellow** = Fair (50–74)
@@ -108,6 +108,8 @@ From [Releases](https://github.com/CultureDigitali/connection-monitor/releases),
 **Requirements:** Windows 10/11 x64 and Microsoft Edge WebView2.
 
 Windows installers are currently **unsigned installers**. Microsoft SmartScreen may show a warning: choose **More info**, verify the publisher/repository, then **Run anyway** only if you downloaded the file from this official GitHub project.
+
+Windows may initially place the four indicators under the hidden-icons menu `^`. Open it and enable Connection Monitor indicators in taskbar settings to keep them beside the clock.
 
 ### Build from source
 
