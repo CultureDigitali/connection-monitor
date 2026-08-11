@@ -8,6 +8,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 
 mod i18n;
+mod history;
 mod monitor;
 mod stats;
 mod tray;
