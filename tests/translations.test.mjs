@@ -21,6 +21,7 @@ test('every supported language includes diagnostic labels and recommendations', 
         'recommendation_jitter',
         'recommendation_packet_loss',
         'recommendation_wifi',
+        'infoWebsite',
     ];
     for (const language of ['en', 'it', 'es', 'fr']) {
         for (const key of required) assert.ok(translations[language][key], `${language}.${key}`);
