@@ -3,6 +3,8 @@ import { formatData, formatRate } from './formatters.js';
 import { i18n } from './i18n.js';
 import { buildDiagnosticModel } from './diagnostics.js';
 import { applyOfficialLogo } from './branding.js';
+import { buildHistoryView, findIncidentAt, selectReplayPoint } from './history-model.js';
+import { HistoryChart } from './history-chart.js';
 import officialLogoUrl from '../src-tauri/icons/128x128.png';
 
 function applyTranslations() {
@@ -25,12 +27,19 @@ i18n.onChange(() => {
 class ConnectionMonitor {
     constructor() {
         this.chart = new BandwidthChart('bandwidth-chart');
+        this.historyChart = new HistoryChart(document.getElementById('history-chart'));
         this.stats = null;
+        this.historyResponse = null;
+        this.historyModel = null;
+        this.historyRange = '24h';
+        this.historyMode = 'quality';
+        this.historyCursor = null;
         this.speedTestRunning = false;
         this.diagnosticsExpanded = false;
         this.unsubs = [];
 
         this.setupTabs();
+        this.setupHistoryControls();
         this.setupEventListeners();
         this.initLanguage();
         this.fetchStats();
@@ -48,6 +57,7 @@ class ConnectionMonitor {
                 });
                 const target = document.getElementById(`tab-${tabName}`);
                 if (target) target.classList.remove('hidden');
+                if (tabName === 'statistics') this.loadHistory();
             });
         });
 
@@ -154,12 +164,153 @@ class ConnectionMonitor {
                 const unsub5 = await listen('language-changed', (event) => {
                     i18n.setLanguage(event.payload);
                     applyTranslations();
+                    if (this.historyResponse) this.renderHistory();
                 });
-                this.unsubs.push(unsub1, unsub2, unsub3, unsub4, unsub5);
+                const unsub6 = await listen('history-updated', () => {
+                    if (document.querySelector('[data-tab="statistics"]').classList.contains('active')) {
+                        this.loadHistory();
+                    }
+                });
+                this.unsubs.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6);
             } catch (e) {
                 console.error('Failed to setup event listeners:', e);
             }
         }
+    }
+
+    setupHistoryControls() {
+        document.querySelectorAll('[data-history-range]').forEach((button) => {
+            button.addEventListener('click', () => {
+                this.historyRange = button.dataset.historyRange;
+                document.querySelectorAll('[data-history-range]').forEach((candidate) => {
+                    candidate.classList.toggle('active', candidate === button);
+                });
+                this.loadHistory();
+            });
+        });
+        document.querySelectorAll('[data-history-mode]').forEach((button) => {
+            button.addEventListener('click', () => {
+                this.historyMode = button.dataset.historyMode;
+                document.querySelectorAll('[data-history-mode]').forEach((candidate) => {
+                    candidate.classList.toggle('active', candidate === button);
+                });
+                if (this.historyModel) {
+                    this.historyChart.render(this.historyModel, this.historyMode, this.historyCursor);
+                }
+            });
+        });
+        document.getElementById('history-replay').addEventListener('input', (event) => {
+            this.renderReplay(Number(event.target.value));
+        });
+        window.addEventListener('beforeunload', () => {
+            for (const unsubscribe of this.unsubs) unsubscribe();
+        });
+    }
+
+    async loadHistory() {
+        const container = document.querySelector('.history-container');
+        container.classList.add('loading');
+        try {
+            const response = await this.invoke('get_history', { range: this.historyRange });
+            if (!response) throw new Error('history unavailable');
+            this.historyResponse = response;
+            this.renderHistory();
+        } catch (error) {
+            document.getElementById('history-empty').textContent = i18n.t('historyUnavailable');
+            document.getElementById('history-empty').classList.remove('hidden');
+        } finally {
+            container.classList.remove('loading');
+        }
+    }
+
+    renderHistory() {
+        this.historyModel = buildHistoryView(this.historyResponse, (key) => i18n.t(key));
+        const { summary, points, incidents, streak } = this.historyModel;
+        document.getElementById('history-quality').textContent = summary.quality;
+        document.getElementById('history-availability').textContent = summary.availability;
+        document.getElementById('history-incidents').textContent = summary.incidents;
+        document.getElementById('history-data').textContent = summary.data;
+
+        const empty = document.getElementById('history-empty');
+        empty.textContent = i18n.t('historyEmpty');
+        empty.classList.toggle('hidden', !this.historyModel.empty);
+        const replay = document.getElementById('history-replay');
+        replay.disabled = points.length === 0;
+        if (points.length) {
+            replay.min = String(points[0].timestamp);
+            replay.max = String(points.at(-1).timestamp);
+            replay.step = '60';
+            replay.value = replay.max;
+            this.renderReplay(Number(replay.value));
+        } else {
+            this.historyCursor = null;
+            this.renderReplay(null);
+        }
+        this.historyChart.render(this.historyModel, this.historyMode, this.historyCursor);
+
+        const list = document.getElementById('guardian-list');
+        if (!incidents.length) {
+            const message = document.createElement('p');
+            message.className = 'history-muted';
+            message.textContent = i18n.t('guardianNoIncidents');
+            list.replaceChildren(message);
+            document.getElementById('guardian-detail').classList.add('hidden');
+        } else {
+            list.replaceChildren(...incidents.slice().reverse().map((incident) => {
+                const button = document.createElement('button');
+                button.className = `guardian-event ${incident.kind}`;
+                button.type = 'button';
+                const time = new Date(incident.started_at * 1000).toLocaleTimeString(i18n.getLanguage(), {
+                    hour: '2-digit', minute: '2-digit',
+                });
+                button.innerHTML = `<span><strong>${incident.title}</strong><small>${time} · ${incident.cause}</small></span><b>›</b>`;
+                button.addEventListener('click', () => {
+                    document.getElementById('history-replay').value = String(incident.started_at);
+                    this.renderReplay(incident.started_at);
+                    this.showIncident(incident);
+                });
+                return button;
+            }));
+        }
+
+        document.getElementById('streak-current').textContent = String(streak.current);
+        document.getElementById('streak-best').textContent = String(streak.best);
+        document.getElementById('streak-progress').style.width = `${streak.progress * 100}%`;
+    }
+
+    renderReplay(timestamp) {
+        const buckets = this.historyResponse?.buckets || [];
+        const point = selectReplayPoint(buckets, timestamp);
+        this.historyCursor = point?.started_at ?? null;
+        const time = point
+            ? new Date(point.started_at * 1000).toLocaleTimeString(i18n.getLanguage(), { hour: '2-digit', minute: '2-digit' })
+            : '—';
+        document.getElementById('replay-time').textContent = time;
+        document.getElementById('replay-quality').textContent = Number.isFinite(point?.average_quality)
+            ? `${Math.round(point.average_quality)}/100` : '—';
+        if (point && Number.isFinite(point.average_download_mbps)) {
+            const down = formatRate(point.average_download_mbps);
+            const up = formatRate(point.average_upload_mbps);
+            document.getElementById('replay-speed').textContent = `↓${down.value} ↑${up.value}`;
+        } else {
+            document.getElementById('replay-speed').textContent = '—';
+        }
+        document.getElementById('replay-ping').textContent = Number.isFinite(point?.average_ping_ms)
+            ? `${Math.round(point.average_ping_ms)} ms` : '—';
+        if (this.historyModel) {
+            this.historyChart.render(this.historyModel, this.historyMode, this.historyCursor);
+            const incident = findIncidentAt(this.historyModel.incidents, this.historyCursor);
+            if (incident) this.showIncident(incident);
+        }
+    }
+
+    showIncident(incident) {
+        const detail = document.getElementById('guardian-detail');
+        detail.classList.remove('hidden');
+        document.getElementById('guardian-detail-title').textContent = incident.title;
+        document.getElementById('guardian-detail-cause').textContent = incident.measurement
+            ? `${incident.cause} · ${incident.measurement}` : incident.cause;
+        document.getElementById('guardian-detail-action').textContent = incident.recommendation;
     }
 
     async invoke(command, ...args) {

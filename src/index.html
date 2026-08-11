@@ -41,6 +41,7 @@
 
         <nav class="tabs">
             <button class="tab active" data-tab="monitor" data-i18n="tabMonitor">Monitor</button>
+            <button class="tab" data-tab="statistics" data-i18n="tabStatistics">Statistics</button>
             <button class="tab" data-tab="info" data-i18n="tabInfo">Info</button>
         </nav>
 
@@ -160,6 +161,88 @@
             <span class="uptime" id="uptime">Uptime: 0s</span>
             <span class="total" id="total-data">Total: -- MB</span>
         </footer>
+        </div>
+
+        <div class="tab-content hidden" id="tab-statistics">
+            <div class="history-container">
+                <div class="history-range" role="group" aria-label="History range">
+                    <button class="history-range-btn active" data-history-range="24h">24h</button>
+                    <button class="history-range-btn" data-history-range="7d">7d</button>
+                    <button class="history-range-btn" data-history-range="30d">30d</button>
+                </div>
+
+                <div class="history-summary-grid">
+                    <div class="history-summary-card quality">
+                        <span data-i18n="historyAverageQuality">Average quality</span>
+                        <strong id="history-quality">—</strong>
+                    </div>
+                    <div class="history-summary-card availability">
+                        <span data-i18n="historyAvailability">Availability</span>
+                        <strong id="history-availability">—</strong>
+                    </div>
+                    <div class="history-summary-card incidents">
+                        <span data-i18n="historyIncidents">Incidents</span>
+                        <strong id="history-incidents">0</strong>
+                    </div>
+                    <div class="history-summary-card data">
+                        <span data-i18n="historyTransferred">Transferred</span>
+                        <strong id="history-data">—</strong>
+                    </div>
+                </div>
+
+                <section class="history-chart-card">
+                    <div class="history-section-header">
+                        <div>
+                            <span class="history-eyebrow">Internet Replay</span>
+                            <strong data-i18n="historyTimeline">Connection timeline</strong>
+                        </div>
+                        <div class="history-modes" role="group" aria-label="Chart metric">
+                            <button class="history-mode active" data-history-mode="quality" data-i18n="historyModeQuality">Quality</button>
+                            <button class="history-mode" data-history-mode="bandwidth" data-i18n="historyModeSpeed">Speed</button>
+                            <button class="history-mode" data-history-mode="ping" data-i18n="metricPing">Ping</button>
+                        </div>
+                    </div>
+                    <div class="history-chart-shell">
+                        <canvas id="history-chart"></canvas>
+                        <div class="history-empty" id="history-empty" data-i18n="historyEmpty">History will appear after the first minute.</div>
+                    </div>
+                    <input id="history-replay" class="history-replay" type="range" min="0" max="0" value="0" aria-label="Internet Replay" />
+                    <div class="replay-readout" id="replay-readout">
+                        <span><small data-i18n="historyTime">Time</small><strong id="replay-time">—</strong></span>
+                        <span><small data-i18n="historyModeQuality">Quality</small><strong id="replay-quality">—</strong></span>
+                        <span><small data-i18n="historyModeSpeed">Speed</small><strong id="replay-speed">—</strong></span>
+                        <span><small data-i18n="metricPing">Ping</small><strong id="replay-ping">—</strong></span>
+                    </div>
+                </section>
+
+                <section class="guardian-card">
+                    <div class="history-section-header">
+                        <div>
+                            <span class="history-eyebrow">Connection Guardian</span>
+                            <strong data-i18n="guardianTitle">Detected events</strong>
+                        </div>
+                    </div>
+                    <div class="guardian-list" id="guardian-list">
+                        <p class="history-muted" data-i18n="guardianNoIncidents">No connection incidents in this period.</p>
+                    </div>
+                    <div class="guardian-detail hidden" id="guardian-detail">
+                        <strong id="guardian-detail-title">—</strong>
+                        <p id="guardian-detail-cause">—</p>
+                        <span data-i18n="diagnosticAction">What to do</span>
+                        <p id="guardian-detail-action">—</p>
+                    </div>
+                </section>
+
+                <section class="streak-card">
+                    <div class="streak-mark" aria-hidden="true">◆</div>
+                    <div class="streak-copy">
+                        <span class="history-eyebrow">Connection Streak</span>
+                        <strong><span id="streak-current">0</span> <span data-i18n="streakReliableDays">reliable days</span></strong>
+                        <div class="streak-track"><span id="streak-progress"></span></div>
+                        <small><span data-i18n="streakBest">Personal best</span>: <span id="streak-best">0</span></small>
+                    </div>
+                </section>
+            </div>
         </div>
 
         <div class="tab-content hidden" id="tab-info">
