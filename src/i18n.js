@@ -115,7 +115,15 @@ const translations = {
         infoDeveloperRole: 'Software Developer & Digital Consultant',
         infoCompanyRole: 'Innovative startup · Digital products and AI',
         infoLicense: 'Open source · MIT License',
-        infoMadeIn: 'Designed and developed in Naples, Italy'
+        infoMadeIn: 'Designed and developed in Naples, Italy',
+        notifSettingsTitle: 'Notifications',
+        notifMaster: 'System notifications',
+        notifMasterDesc: 'Enable or mute all alerts',
+        notifConnection: 'Connection lost / restored',
+        notifConnectionDesc: 'Wi-Fi or internet drops',
+        notifQuality: 'Quality changes',
+        notifQualityDesc: 'Degraded / improved (cooldown 15 min)',
+        notifHint: 'Quality alerts are off by default to prevent spam. Cooldown prevents repeats.'
     },
     it: {
         appTitle: 'Monitor Connessione',
@@ -233,7 +241,15 @@ const translations = {
         infoDeveloperRole: 'Software Developer & Digital Consultant',
         infoCompanyRole: 'Startup innovativa · Prodotti digitali e AI',
         infoLicense: 'Open source · Licenza MIT',
-        infoMadeIn: 'Progettata e sviluppata a Napoli'
+        infoMadeIn: 'Progettata e sviluppata a Napoli',
+        notifSettingsTitle: 'Notifiche',
+        notifMaster: 'Notifiche di sistema',
+        notifMasterDesc: 'Attiva o silenzia tutti gli avvisi',
+        notifConnection: 'Connessione persa / ripristinata',
+        notifConnectionDesc: 'Cadute Wi-Fi o internet',
+        notifQuality: 'Variazioni qualità',
+        notifQualityDesc: 'Peggiorata / migliorata (pausa 15 min)',
+        notifHint: 'Gli avvisi di qualità sono disattivati di default per evitare spam. La pausa evita ripetizioni.'
     },
     es: {
         appTitle: 'Monitor de Conexion',
@@ -351,7 +367,15 @@ const translations = {
         infoDeveloperRole: 'Desarrollador de software y consultor digital',
         infoCompanyRole: 'Startup innovadora · Productos digitales e IA',
         infoLicense: 'Código abierto · Licencia MIT',
-        infoMadeIn: 'Diseñada y desarrollada en Nápoles'
+        infoMadeIn: 'Diseñada y desarrollada en Nápoles',
+        notifSettingsTitle: 'Notificaciones',
+        notifMaster: 'Notificaciones del sistema',
+        notifMasterDesc: 'Activa o silencia todas las alertas',
+        notifConnection: 'Conexion perdida / restaurada',
+        notifConnectionDesc: 'Caidas de Wi-Fi o internet',
+        notifQuality: 'Cambios de calidad',
+        notifQualityDesc: 'Degradada / mejorada (pausa 15 min)',
+        notifHint: 'Las alertas de calidad estan desactivadas por defecto para evitar spam. La pausa evita repeticiones.'
     },
     fr: {
         appTitle: 'Moniteur Connexion',
@@ -469,7 +493,15 @@ const translations = {
         infoDeveloperRole: 'Développeur logiciel et consultant numérique',
         infoCompanyRole: 'Startup innovante · Produits numériques et IA',
         infoLicense: 'Open source · Licence MIT',
-        infoMadeIn: 'Conçue et développée à Naples'
+        infoMadeIn: 'Conçue et développée à Naples',
+        notifSettingsTitle: 'Notifications',
+        notifMaster: 'Notifications système',
+        notifMasterDesc: 'Activer ou couper toutes les alertes',
+        notifConnection: 'Connexion perdue / rétablie',
+        notifConnectionDesc: 'Pannes Wi-Fi ou internet',
+        notifQuality: 'Changements de qualité',
+        notifQualityDesc: 'Dégradée / améliorée (pause 15 min)',
+        notifHint: 'Les alertes qualité sont désactivées par défaut pour éviter le spam. La pause évite les répétitions.'
     }
 };
 

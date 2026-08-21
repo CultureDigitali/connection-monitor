@@ -43,11 +43,14 @@ class ConnectionMonitor {
         this.guide = bindGuide(document, new GuideState(localStorage, '0.3'), (key) => i18n.t(key));
         i18n.onChange(() => this.guide.render());
 
+        this.notificationPrefs = null;
         this.setupTabs();
         this.setupHistoryControls();
         this.setupEventListeners();
+        this.setupNotificationControls();
         this.initLanguage();
         this.fetchStats();
+        this.loadNotificationPrefs();
     }
 
     setupTabs() {
@@ -213,6 +216,68 @@ class ConnectionMonitor {
             for (const unsubscribe of this.unsubs) unsubscribe();
             this.tooltipCleanup();
         });
+    }
+
+    setupNotificationControls() {
+        const master = document.getElementById('notif-master');
+        const conn = document.getElementById('notif-connection');
+        const quality = document.getElementById('notif-quality');
+        if (!master || !conn || !quality) return;
+
+        const applyDisabledState = () => {
+            const disabled = !master.checked;
+            conn.disabled = disabled;
+            quality.disabled = disabled;
+            conn.closest('.notif-row').classList.toggle('disabled', disabled);
+            quality.closest('.notif-row').classList.toggle('disabled', disabled);
+        };
+
+        const save = async () => {
+            if (!this.notificationPrefs) return;
+            const next = {
+                enabled: master.checked,
+                connection_enabled: conn.checked,
+                quality_enabled: quality.checked,
+                quality_cooldown_secs: this.notificationPrefs.quality_cooldown_secs ?? 900,
+                connection_cooldown_secs: this.notificationPrefs.connection_cooldown_secs ?? 300,
+                quality_threshold: this.notificationPrefs.quality_threshold ?? 10,
+            };
+            const saved = await this.invoke('set_notification_prefs', { prefs: next });
+            if (saved) this.notificationPrefs = saved;
+            applyDisabledState();
+        };
+
+        master.addEventListener('change', save);
+        conn.addEventListener('change', save);
+        quality.addEventListener('change', save);
+        this._applyNotifDisabled = applyDisabledState;
+    }
+
+    async loadNotificationPrefs() {
+        const master = document.getElementById('notif-master');
+        const conn = document.getElementById('notif-connection');
+        const quality = document.getElementById('notif-quality');
+        if (!master || !conn || !quality) return;
+        try {
+            let prefs = null;
+            if (window.__TAURI_INTERNALS__) {
+                prefs = await window.__TAURI__.core.invoke('get_notification_prefs');
+            } else {
+                const stored = localStorage.getItem('cm-notif-prefs');
+                prefs = stored ? JSON.parse(stored) : null;
+            }
+            if (!prefs) {
+                prefs = { enabled: true, connection_enabled: true, quality_enabled: false, quality_cooldown_secs: 900, connection_cooldown_secs: 300, quality_threshold: 10 };
+            }
+            this.notificationPrefs = prefs;
+            master.checked = !!prefs.enabled;
+            conn.checked = !!prefs.connection_enabled;
+            quality.checked = !!prefs.quality_enabled;
+            if (this._applyNotifDisabled) this._applyNotifDisabled();
+            try { localStorage.setItem('cm-notif-prefs', JSON.stringify(prefs)); } catch (_) {}
+        } catch (e) {
+            console.error('Failed to load notification prefs', e);
+        }
     }
 
     async loadHistory() {

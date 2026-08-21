@@ -287,6 +287,41 @@
                     </div>
                 </div>
 
+                <div class="info-card notif-card">
+                    <span class="info-eyebrow" data-i18n="notifSettingsTitle">Notifications</span>
+                    <div class="notif-row master">
+                        <div>
+                            <strong data-i18n="notifMaster">System notifications</strong>
+                            <p data-i18n="notifMasterDesc">Enable or mute all alerts</p>
+                        </div>
+                        <label class="notif-switch">
+                            <input type="checkbox" id="notif-master">
+                            <span></span>
+                        </label>
+                    </div>
+                    <div class="notif-row">
+                        <div>
+                            <strong data-i18n="notifConnection">Connection lost / restored</strong>
+                            <p data-i18n="notifConnectionDesc">Wi-Fi or internet drops</p>
+                        </div>
+                        <label class="notif-switch">
+                            <input type="checkbox" id="notif-connection">
+                            <span></span>
+                        </label>
+                    </div>
+                    <div class="notif-row">
+                        <div>
+                            <strong data-i18n="notifQuality">Quality changes</strong>
+                            <p data-i18n="notifQualityDesc">Degraded / improved (cooldown 15 min)</p>
+                        </div>
+                        <label class="notif-switch">
+                            <input type="checkbox" id="notif-quality">
+                            <span></span>
+                        </label>
+                    </div>
+                    <p class="notif-hint" data-i18n="notifHint">Quality alerts are off by default to prevent spam. Cooldown prevents repeats.</p>
+                </div>
+
                 <button class="guide-open-button" id="open-guide" type="button" data-i18n="guideOpen" data-tooltip-key="tooltipGuide">Open guide</button>
 
                 <div class="info-footer">

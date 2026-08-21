@@ -53,8 +53,7 @@ pub async fn run_speed_test() -> SpeedTestResult {
             let mut total_bytes = 0u64;
             let mut header_end = false;
             let mut buffer = [0u8; 8192];
-            let mut accumulated: Vec<u8> = Vec::with_capacity(8192);
-            let mut header_buf_consumed = 0;
+            let mut accumulated: Vec<u8> = Vec::with_capacity(4096);
 
             loop {
                 if download_start.elapsed().as_secs() > MAX_DOWNLOAD_SECS {
@@ -75,15 +74,20 @@ pub async fn run_speed_test() -> SpeedTestResult {
                         let chunk = &buffer[..n];
                         if !header_end {
                             accumulated.extend_from_slice(chunk);
-                            if let Some(idx) = find_header_end(&accumulated[header_buf_consumed..]) {
-                                let abs_idx = header_buf_consumed + idx;
-                                let body_start = abs_idx + 4;
+                            if let Some(idx) = find_header_end(&accumulated) {
+                                let body_start = idx + 4;
                                 if accumulated.len() > body_start {
                                     total_bytes = (accumulated.len() - body_start) as u64;
                                 }
                                 header_end = true;
+                                accumulated.clear();
+                                accumulated.shrink_to_fit();
+                            } else if accumulated.len() > 8192 {
+                                // header not found within first 8KB -> treat as body to avoid unbounded growth
+                                header_end = true;
+                                total_bytes = 0;
+                                accumulated.clear();
                             }
-                            header_buf_consumed = accumulated.len();
                         } else {
                             total_bytes += n as u64;
                         }
@@ -131,4 +135,42 @@ fn find_header_end(data: &[u8]) -> Option<usize> {
         return None;
     }
     data.windows(4).position(|w| w == b"\r\n\r\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_header_end;
+
+    #[test]
+    fn finds_header_across_chunk_boundary() {
+        let mut accumulated = Vec::new();
+        accumulated.extend_from_slice(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r");
+        assert_eq!(find_header_end(&accumulated), None);
+        accumulated.extend_from_slice(b"\nbody");
+        assert!(find_header_end(&accumulated).is_some());
+        let idx = find_header_end(&accumulated).unwrap();
+        assert_eq!(&accumulated[idx..idx + 4], b"\r\n\r\n");
+    }
+
+    #[test]
+    fn body_bytes_count_correct_after_split_header() {
+        let header = b"HTTP/1.0 200 OK\r\n\r\n";
+        let body = b"0123456789";
+        let mut accumulated = Vec::new();
+        // simulate two reads splitting the \r\n\r\n
+        let split_at = header.len() - 2;
+        accumulated.extend_from_slice(&header[..split_at]);
+        assert_eq!(find_header_end(&accumulated), None);
+        accumulated.extend_from_slice(&header[split_at..]);
+        accumulated.extend_from_slice(body);
+        let idx = find_header_end(&accumulated).unwrap();
+        let body_start = idx + 4;
+        assert_eq!(accumulated.len() - body_start, body.len());
+    }
+
+    #[test]
+    fn returns_none_for_incomplete_header() {
+        assert_eq!(find_header_end(b"HTTP/1.1 200"), None);
+        assert_eq!(find_header_end(b"\r\n\r\n"), Some(0));
+    }
 }

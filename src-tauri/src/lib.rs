@@ -21,7 +21,7 @@ use history::store::HistoryStore;
 use history::{day_bounds, range_start, HistoryResponse, ReplayResponse};
 use i18n::{translate, I18n, Language};
 use monitor::bandwidth::BandwidthMonitor;
-use monitor::notify::{Notification, Notifier};
+use monitor::notify::{Notification, NotificationPrefs, Notifier};
 use monitor::ping::{do_ping, PingMonitor};
 use monitor::speedtest::{run_speed_test, SpeedTestResult};
 use monitor::wifi::WifiMonitor;
@@ -33,6 +33,7 @@ use tray::{
 const CONFIG_DIR_NAME: &str = "connection-monitor";
 const CONFIG_FILE_NAME: &str = "lang.conf";
 const COLORS_FILE_NAME: &str = "colors.json";
+const NOTIFICATIONS_FILE_NAME: &str = "notifications.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -118,6 +119,30 @@ fn save_colors(prefs: &ColorPrefs) {
     }
 }
 
+fn load_notification_prefs() -> NotificationPrefs {
+    if let Some(dir) = config_dir() {
+        let path = dir.join(NOTIFICATIONS_FILE_NAME);
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(prefs) = serde_json::from_str::<NotificationPrefs>(&content) {
+                return prefs;
+            }
+        }
+    }
+    NotificationPrefs::default()
+}
+
+fn save_notification_prefs(prefs: &NotificationPrefs) {
+    if let Some(dir) = config_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join(NOTIFICATIONS_FILE_NAME);
+        if let Ok(content) = serde_json::to_string(prefs) {
+            if let Ok(mut file) = std::fs::File::create(&path) {
+                let _ = file.write_all(content.as_bytes());
+            }
+        }
+    }
+}
+
 fn hex_to_rgb(hex: &str) -> (u8, u8, u8) {
     let hex = hex.trim_start_matches('#');
     if hex.len() != 6 {
@@ -174,6 +199,31 @@ fn get_colors(state: State<'_, AppState>) -> ColorPrefs {
 fn change_colors(colors: ColorPrefs, state: State<'_, AppState>) {
     save_colors(&colors);
     *state.colors.lock() = colors;
+}
+
+#[tauri::command]
+fn get_notification_prefs(state: State<'_, AppState>) -> NotificationPrefs {
+    state.notification_prefs.lock().clone()
+}
+
+#[tauri::command]
+fn set_notification_prefs(prefs: NotificationPrefs, state: State<'_, AppState>) -> NotificationPrefs {
+    let mut sanitized = prefs;
+    sanitized.quality_threshold = sanitized.quality_threshold.clamp(1, 50);
+    sanitized.quality_cooldown_secs = sanitized.quality_cooldown_secs.clamp(60, 86400);
+    sanitized.connection_cooldown_secs = sanitized.connection_cooldown_secs.clamp(60, 86400);
+    save_notification_prefs(&sanitized);
+    *state.notification_prefs.lock() = sanitized.clone();
+    sanitized
+}
+
+#[tauri::command]
+fn set_notifications_enabled(enabled: bool, state: State<'_, AppState>) -> NotificationPrefs {
+    let mut prefs = state.notification_prefs.lock().clone();
+    prefs.enabled = enabled;
+    save_notification_prefs(&prefs);
+    *state.notification_prefs.lock() = prefs.clone();
+    prefs
 }
 
 #[tauri::command]
@@ -266,6 +316,7 @@ struct AppState {
     notifier: Arc<Mutex<Notifier>>,
     i18n: Arc<I18n>,
     colors: Arc<Mutex<ColorPrefs>>,
+    notification_prefs: Arc<Mutex<NotificationPrefs>>,
     latest_stats: Arc<Mutex<ConnectionStats>>,
     smoothed_quality: Arc<Mutex<Option<f64>>>,
     history_recorder: Arc<Mutex<HistoryRecorder>>,
@@ -411,10 +462,11 @@ fn spawn_ping_loop(app: AppHandle, state: Arc<AppState>) {
             let _ = app.emit("ping-update", ());
 
             if connected_changed {
+                let prefs = state.notification_prefs.lock().clone();
                 if let Some(notif) = state
                     .notifier
                     .lock()
-                    .check_connection(ping_result.is_some(), lang)
+                    .check_connection(ping_result.is_some(), lang, &prefs)
                 {
                     send_notification(&app, &notif);
                 }
@@ -430,10 +482,12 @@ fn spawn_quality_loop(app: AppHandle, state: Arc<AppState>) {
 
             let stats = state.latest_stats.lock().clone();
             if stats.connection_status == ConnectionStatus::Online {
+                let prefs = state.notification_prefs.lock().clone();
                 if let Some(notif) = state.notifier.lock().check_quality(
                     stats.quality_score_i32,
                     &stats.quality_label_key,
                     state.i18n.get(),
+                    &prefs,
                 ) {
                     send_notification(&app, &notif);
                 }
@@ -473,6 +527,7 @@ pub fn run() {
     let lang = load_language();
     let i18n = Arc::new(I18n::new(lang));
     let colors = Arc::new(Mutex::new(load_colors()));
+    let notification_prefs = Arc::new(Mutex::new(load_notification_prefs()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
@@ -513,6 +568,7 @@ pub fn run() {
                     notifier: notifier.clone(),
                     i18n: i18n.clone(),
                     colors: colors.clone(),
+                    notification_prefs: notification_prefs.clone(),
                     latest_stats: latest_stats.clone(),
                     smoothed_quality: smoothed_quality.clone(),
                     history_recorder: history_recorder.clone(),
@@ -527,6 +583,7 @@ pub fn run() {
                     notifier,
                     i18n,
                     colors,
+                    notification_prefs,
                     latest_stats,
                     smoothed_quality,
                     history_recorder,
@@ -572,7 +629,10 @@ pub fn run() {
             get_app_version,
             t,
             get_colors,
-            change_colors
+            change_colors,
+            get_notification_prefs,
+            set_notification_prefs,
+            set_notifications_enabled
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
